@@ -134,7 +134,7 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H $STAGING_EC2_HOST >> ~/.ssh/known_hosts 2>/dev/null || true
 
-          ssh -i ~/.ssh/deploy_key $STAGING_EC2_USER@$STAGING_EC2_HOST << 'EOF'
+          ssh -i ~/.ssh/deploy_key $STAGING_EC2_USER@$STAGING_EC2_HOST <<- 'EOF'
           #!/bin/bash
           set -e
           cd /app/nutribot
@@ -190,7 +190,7 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H $PROD_EC2_HOST >> ~/.ssh/known_hosts 2>/dev/null || true
 
-          ssh -i ~/.ssh/deploy_key $PROD_EC2_USER@$PROD_EC2_HOST << 'EOF'
+          ssh -i ~/.ssh/deploy_key $PROD_EC2_USER@$PROD_EC2_HOST <<- 'EOF'
           #!/bin/bash
           set -e
           cd /app/nutribot
