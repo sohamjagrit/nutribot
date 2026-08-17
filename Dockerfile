@@ -28,14 +28,10 @@ COPY .env.example .env
 COPY config/ config/
 COPY src/ src/
 COPY static/ static/
-# Note: no data/ copied — chunks load from S3 and vectors from Pinecone at runtime.
+# Note: vectors live in Pinecone; no data/ needed at runtime.
 
-# Pre-download models so the container works offline.
-# Cached at /root/.cache/huggingface/hub
-#   - BGE-base: embeddings (queries + documents)
-#   - ms-marco-MiniLM cross-encoder: reranking
-RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('BAAI/bge-base-en-v1.5')" \
- && python -c "from sentence_transformers import CrossEncoder; CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')"
+# Pre-download the embedding model so the container works offline.
+RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('BAAI/bge-base-en-v1.5')"
 
 # Expose port
 EXPOSE 8000
