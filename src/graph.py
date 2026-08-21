@@ -1,6 +1,8 @@
 """ReAct agent: tool-calling loop with conversation memory."""
 
 import logging
+import os
+import sqlite3
 from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langchain_anthropic import ChatAnthropic
@@ -23,7 +25,8 @@ Rules:
 
 _llm = ChatAnthropic(api_key=ANTHROPIC_API_KEY, model=CLAUDE_MODEL)
 
-checkpointer = SqliteSaver.from_conn_string(SQLITE_DB_PATH)
+os.makedirs(os.path.dirname(SQLITE_DB_PATH) or ".", exist_ok=True)
+checkpointer = SqliteSaver(sqlite3.connect(SQLITE_DB_PATH, check_same_thread=False))
 
 graph = create_react_agent(
     _llm,
