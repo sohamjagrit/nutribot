@@ -1,12 +1,9 @@
 """ReAct agent: tool-calling loop with conversation memory."""
 
 import logging
-import os
-import sqlite3
 from langgraph.prebuilt import create_react_agent
-from langgraph.checkpoint.sqlite import SqliteSaver
 from langchain_anthropic import ChatAnthropic
-from config.settings import ANTHROPIC_API_KEY, CLAUDE_MODEL, SQLITE_DB_PATH
+from config.settings import ANTHROPIC_API_KEY, CLAUDE_MODEL
 from src.tools import retrieve_nutrition_info, calculate_macros
 
 logger = logging.getLogger(__name__)
@@ -25,12 +22,11 @@ Rules:
 
 _llm = ChatAnthropic(api_key=ANTHROPIC_API_KEY, model=CLAUDE_MODEL)
 
-os.makedirs(os.path.dirname(SQLITE_DB_PATH) or ".", exist_ok=True)
-checkpointer = SqliteSaver(sqlite3.connect(SQLITE_DB_PATH, check_same_thread=False))
 
-graph = create_react_agent(
-    _llm,
-    [retrieve_nutrition_info, calculate_macros],
-    checkpointer=checkpointer,
-    prompt=_SYSTEM,
-)
+def create_graph(checkpointer):
+    return create_react_agent(
+        _llm,
+        [retrieve_nutrition_info, calculate_macros],
+        checkpointer=checkpointer,
+        prompt=_SYSTEM,
+    )

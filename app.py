@@ -2,19 +2,35 @@
 
 import json
 import logging
+import os
+from contextlib import asynccontextmanager
 from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from langchain_core.messages import HumanMessage, ToolMessage
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from pydantic import BaseModel
-from src.graph import graph
+from config.settings import SQLITE_DB_PATH
+from src.graph import create_graph
 from src.tools import parse_sources_from_tool_output
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 
-app = FastAPI(title="NutriBot", description="Personalized RAG Chatbot for Nutrition Q&A")
+graph = None
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global graph
+    os.makedirs(os.path.dirname(SQLITE_DB_PATH) or ".", exist_ok=True)
+    async with AsyncSqliteSaver.from_conn_string(SQLITE_DB_PATH) as checkpointer:
+        graph = create_graph(checkpointer)
+        yield
+
+
+app = FastAPI(title="NutriBot", description="Personalized RAG Chatbot for Nutrition Q&A", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
