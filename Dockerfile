@@ -28,7 +28,9 @@ COPY .env.example .env
 COPY config/ config/
 COPY src/ src/
 COPY static/ static/
-# Note: vectors live in Pinecone; no data/ needed at runtime.
+
+# Create data dir for SQLite conversation memory
+RUN mkdir -p /app/data
 
 # Pre-download the embedding model so the container works offline.
 RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('BAAI/bge-base-en-v1.5')"
