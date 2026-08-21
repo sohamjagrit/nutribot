@@ -2,7 +2,7 @@
 
 import logging
 from langgraph.prebuilt import create_react_agent
-from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+from langgraph.checkpoint.sqlite import SqliteSaver
 from langchain_anthropic import ChatAnthropic
 from config.settings import ANTHROPIC_API_KEY, CLAUDE_MODEL, SQLITE_DB_PATH
 from src.tools import retrieve_nutrition_info, calculate_macros
@@ -23,7 +23,7 @@ Rules:
 
 _llm = ChatAnthropic(api_key=ANTHROPIC_API_KEY, model=CLAUDE_MODEL)
 
-checkpointer = AsyncSqliteSaver.from_conn_string(SQLITE_DB_PATH)
+checkpointer = SqliteSaver.from_conn_string(SQLITE_DB_PATH)
 
 graph = create_react_agent(
     _llm,
