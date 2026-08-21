@@ -39,7 +39,7 @@ User → FastAPI → LangGraph ReAct Agent (Claude)
 | Vector store | Pinecone |
 | Embeddings | `BAAI/bge-base-en-v1.5` (SentenceTransformer) |
 | Reranker | `cross-encoder/ms-marco-MiniLM-L-6-v2` |
-| Conversation memory | LangGraph `MemorySaver` (in-process, per thread) |
+| Conversation memory | LangGraph `SqliteSaver` (persistent, per thread) |
 | Backend | FastAPI + uvicorn |
 | Observability | LangSmith |
 | Deployment | Docker on AWS EC2 |

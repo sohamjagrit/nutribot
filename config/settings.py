@@ -16,3 +16,5 @@ RERANKER_MODEL: str = os.getenv("RERANKER_MODEL", "cross-encoder/ms-marco-MiniLM
 RERANK_CANDIDATES: int = int(os.getenv("RERANK_CANDIDATES", "15"))  # fetched from Pinecone
 RERANK_TOP_K: int = int(os.getenv("RERANK_TOP_K", "5"))             # passed to LLM after rerank
 MIN_RELEVANCE_SCORE: float = float(os.getenv("MIN_RELEVANCE_SCORE", "-4.0"))  # ms-marco logit threshold
+
+SQLITE_DB_PATH: str = os.getenv("SQLITE_DB_PATH", "data/memory.db")
