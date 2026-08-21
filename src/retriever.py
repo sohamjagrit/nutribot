@@ -4,7 +4,7 @@ import logging
 from sentence_transformers import SentenceTransformer
 from pinecone import Pinecone
 from langsmith import traceable
-from config.settings import PINECONE_API_KEY, PINECONE_INDEX, EMBED_MODEL, TOP_K
+from config.settings import PINECONE_API_KEY, PINECONE_INDEX, EMBED_MODEL, RERANK_CANDIDATES
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ def _get_index():
 
 
 @traceable(name="pinecone-retrieve", run_type="retriever")
-def retrieve(query: str, top_k: int = TOP_K) -> list[str]:
+def retrieve(query: str, top_k: int = RERANK_CANDIDATES) -> list[str]:
     """Return top-k document texts for a query."""
     prefix = _BGE_QUERY_PREFIX if "bge" in EMBED_MODEL.lower() else ""
     vec = _get_embedder().encode(prefix + query).tolist()
