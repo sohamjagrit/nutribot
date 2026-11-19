@@ -8,6 +8,8 @@ PINECONE_INDEX: str = os.getenv("PINECONE_INDEX", "nutrition-index")
 
 ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
 CLAUDE_MODEL: str = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-6")
+FAST_MODEL: str = os.getenv("FAST_MODEL", "claude-haiku-4-5-20251001")  # router, grader, rewriter
+MAX_RETRIEVAL_RETRIES: int = int(os.getenv("MAX_RETRIEVAL_RETRIES", "1"))
 
 
 EMBED_MODEL: str = os.getenv("EMBED_MODEL", "BAAI/bge-base-en-v1.5")

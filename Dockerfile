@@ -24,7 +24,6 @@ ENV PATH="/app/.venv/bin:$PATH"
 
 # Copy project files
 COPY app.py .
-COPY .env.example .env
 COPY config/ config/
 COPY src/ src/
 COPY static/ static/

@@ -1,0 +1,289 @@
+{
+  "tag": "baseline",
+  "n_questions": 15,
+  "config": {
+    "embed_model": "BAAI/bge-base-en-v1.5",
+    "reranker": "cross-encoder/ms-marco-MiniLM-L-6-v2",
+    "rerank_top_k": 5,
+    "llm": "claude-sonnet-4-6"
+  },
+  "retrieval": {
+    "aggregate": {
+      "precision_at_k": 0.893,
+      "hit_at_k": 1.0,
+      "recall_in_pool": 1.0,
+      "mrr": 0.967
+    },
+    "per_question": [
+      {
+        "id": "q01",
+        "precision_at_k": 1.0,
+        "hit_at_k": 1.0,
+        "recall_in_pool": 1.0,
+        "mrr": 1.0,
+        "n_reranked": 5
+      },
+      {
+        "id": "q02",
+        "precision_at_k": 0.4,
+        "hit_at_k": 1.0,
+        "recall_in_pool": 1.0,
+        "mrr": 0.5,
+        "n_reranked": 5
+      },
+      {
+        "id": "q03",
+        "precision_at_k": 1.0,
+        "hit_at_k": 1.0,
+        "recall_in_pool": 1.0,
+        "mrr": 1.0,
+        "n_reranked": 5
+      },
+      {
+        "id": "q04",
+        "precision_at_k": 1.0,
+        "hit_at_k": 1.0,
+        "recall_in_pool": 1.0,
+        "mrr": 1.0,
+        "n_reranked": 5
+      },
+      {
+        "id": "q05",
+        "precision_at_k": 1.0,
+        "hit_at_k": 1.0,
+        "recall_in_pool": 1.0,
+        "mrr": 1.0,
+        "n_reranked": 5
+      },
+      {
+        "id": "q06",
+        "precision_at_k": 1.0,
+        "hit_at_k": 1.0,
+        "recall_in_pool": 1.0,
+        "mrr": 1.0,
+        "n_reranked": 5
+      },
+      {
+        "id": "q07",
+        "precision_at_k": 0.6,
+        "hit_at_k": 1.0,
+        "recall_in_pool": 1.0,
+        "mrr": 1.0,
+        "n_reranked": 5
+      },
+      {
+        "id": "q08",
+        "precision_at_k": 1.0,
+        "hit_at_k": 1.0,
+        "recall_in_pool": 1.0,
+        "mrr": 1.0,
+        "n_reranked": 5
+      },
+      {
+        "id": "q09",
+        "precision_at_k": 1.0,
+        "hit_at_k": 1.0,
+        "recall_in_pool": 1.0,
+        "mrr": 1.0,
+        "n_reranked": 5
+      },
+      {
+        "id": "q10",
+        "precision_at_k": 1.0,
+        "hit_at_k": 1.0,
+        "recall_in_pool": 1.0,
+        "mrr": 1.0,
+        "n_reranked": 5
+      },
+      {
+        "id": "q11",
+        "precision_at_k": 1.0,
+        "hit_at_k": 1.0,
+        "recall_in_pool": 1.0,
+        "mrr": 1.0,
+        "n_reranked": 5
+      },
+      {
+        "id": "q12",
+        "precision_at_k": 0.4,
+        "hit_at_k": 1.0,
+        "recall_in_pool": 1.0,
+        "mrr": 1.0,
+        "n_reranked": 5
+      },
+      {
+        "id": "q13",
+        "precision_at_k": 1.0,
+        "hit_at_k": 1.0,
+        "recall_in_pool": 1.0,
+        "mrr": 1.0,
+        "n_reranked": 5
+      },
+      {
+        "id": "q14",
+        "precision_at_k": 1.0,
+        "hit_at_k": 1.0,
+        "recall_in_pool": 1.0,
+        "mrr": 1.0,
+        "n_reranked": 5
+      },
+      {
+        "id": "q15",
+        "precision_at_k": 1.0,
+        "hit_at_k": 1.0,
+        "recall_in_pool": 1.0,
+        "mrr": 1.0,
+        "n_reranked": 5
+      }
+    ]
+  },
+  "e2e": {
+    "aggregate": {
+      "avg_latency_s": 16.752,
+      "p95_latency_s": 21.522,
+      "avg_tokens_per_query": 4839.2,
+      "avg_cost_per_query_usd": 0.022518,
+      "cost_per_1k_queries_usd": 22.518,
+      "groundedness_rate": 0.133,
+      "hallucination_rate": 0.867,
+      "answer_correctness_rate": 0.8
+    },
+    "per_question": [
+      {
+        "id": "q01",
+        "latency_s": 12.422,
+        "input_tokens": 3700,
+        "output_tokens": 537,
+        "cost_usd": 0.019155,
+        "grounded": true,
+        "correct": false
+      },
+      {
+        "id": "q02",
+        "latency_s": 14.342,
+        "input_tokens": 4479,
+        "output_tokens": 578,
+        "cost_usd": 0.022107,
+        "grounded": false,
+        "correct": true
+      },
+      {
+        "id": "q03",
+        "latency_s": 23.218,
+        "input_tokens": 5050,
+        "output_tokens": 820,
+        "cost_usd": 0.02745,
+        "grounded": false,
+        "correct": true
+      },
+      {
+        "id": "q04",
+        "latency_s": 14.005,
+        "input_tokens": 3797,
+        "output_tokens": 690,
+        "cost_usd": 0.021741,
+        "grounded": false,
+        "correct": true
+      },
+      {
+        "id": "q05",
+        "latency_s": 17.421,
+        "input_tokens": 3942,
+        "output_tokens": 641,
+        "cost_usd": 0.021441,
+        "grounded": false,
+        "correct": true
+      },
+      {
+        "id": "q06",
+        "latency_s": 19.143,
+        "input_tokens": 4026,
+        "output_tokens": 886,
+        "cost_usd": 0.025368,
+        "grounded": false,
+        "correct": true
+      },
+      {
+        "id": "q07",
+        "latency_s": 12.99,
+        "input_tokens": 3496,
+        "output_tokens": 475,
+        "cost_usd": 0.017613,
+        "grounded": false,
+        "correct": false
+      },
+      {
+        "id": "q08",
+        "latency_s": 18.13,
+        "input_tokens": 4220,
+        "output_tokens": 827,
+        "cost_usd": 0.025065,
+        "grounded": false,
+        "correct": true
+      },
+      {
+        "id": "q09",
+        "latency_s": 16.187,
+        "input_tokens": 3680,
+        "output_tokens": 709,
+        "cost_usd": 0.021675,
+        "grounded": false,
+        "correct": true
+      },
+      {
+        "id": "q10",
+        "latency_s": 20.754,
+        "input_tokens": 5140,
+        "output_tokens": 779,
+        "cost_usd": 0.027105,
+        "grounded": false,
+        "correct": true
+      },
+      {
+        "id": "q11",
+        "latency_s": 19.308,
+        "input_tokens": 3726,
+        "output_tokens": 805,
+        "cost_usd": 0.023253,
+        "grounded": false,
+        "correct": true
+      },
+      {
+        "id": "q12",
+        "latency_s": 10.471,
+        "input_tokens": 4509,
+        "output_tokens": 366,
+        "cost_usd": 0.019017,
+        "grounded": true,
+        "correct": true
+      },
+      {
+        "id": "q13",
+        "latency_s": 17.876,
+        "input_tokens": 3614,
+        "output_tokens": 728,
+        "cost_usd": 0.021762,
+        "grounded": false,
+        "correct": true
+      },
+      {
+        "id": "q14",
+        "latency_s": 13.493,
+        "input_tokens": 3955,
+        "output_tokens": 531,
+        "cost_usd": 0.01983,
+        "grounded": false,
+        "correct": true
+      },
+      {
+        "id": "q15",
+        "latency_s": 21.522,
+        "input_tokens": 5254,
+        "output_tokens": 628,
+        "cost_usd": 0.025182,
+        "grounded": false,
+        "correct": false
+      }
+    ]
+  }
+}

@@ -1,0 +1,110 @@
+{
+  "description": "Golden eval set for NutriBot. Expand to 30-50 items for tighter numbers. 'relevant_keywords' marks a retrieved chunk as relevant if it contains ANY listed keyword (case-insensitive) — a lightweight proxy for a human relevance label.",
+  "items": [
+    {
+      "id": "q01",
+      "question": "How much protein should I eat per day to build muscle?",
+      "expected_answer": "Roughly 1.6 to 2.2 grams of protein per kilogram of body weight per day supports muscle growth for people doing resistance training.",
+      "relevant_keywords": ["protein", "muscle", "gram per kilogram", "g/kg"],
+      "category": "protein"
+    },
+    {
+      "id": "q02",
+      "question": "What are good sources of dietary fiber?",
+      "expected_answer": "Whole grains, legumes (beans, lentils), fruits, vegetables, nuts and seeds are high in dietary fiber.",
+      "relevant_keywords": ["fiber", "whole grain", "legume", "vegetable"],
+      "category": "macronutrients"
+    },
+    {
+      "id": "q03",
+      "question": "Why is iron important and what foods are rich in it?",
+      "expected_answer": "Iron is needed to make hemoglobin that carries oxygen in the blood. Red meat, poultry, beans, lentils, spinach and fortified cereals are iron-rich.",
+      "relevant_keywords": ["iron", "hemoglobin", "anemia"],
+      "category": "minerals"
+    },
+    {
+      "id": "q04",
+      "question": "What does vitamin C do in the body?",
+      "expected_answer": "Vitamin C supports the immune system, acts as an antioxidant, and helps the body absorb iron and produce collagen.",
+      "relevant_keywords": ["vitamin c", "ascorbic", "antioxidant", "collagen"],
+      "category": "vitamins"
+    },
+    {
+      "id": "q05",
+      "question": "How do I lose weight in a healthy way?",
+      "expected_answer": "Create a moderate calorie deficit through balanced eating and physical activity, aiming for gradual, sustainable weight loss rather than crash dieting.",
+      "relevant_keywords": ["weight", "calorie deficit", "energy balance", "physical activity"],
+      "category": "weight_management"
+    },
+    {
+      "id": "q06",
+      "question": "What is the difference between saturated and unsaturated fats?",
+      "expected_answer": "Saturated fats (mostly animal products) can raise LDL cholesterol; unsaturated fats (plant oils, nuts, fish) are generally healthier for the heart.",
+      "relevant_keywords": ["saturated", "unsaturated", "fat", "cholesterol"],
+      "category": "macronutrients"
+    },
+    {
+      "id": "q07",
+      "question": "How much water should I drink each day?",
+      "expected_answer": "General guidance is around 2 to 3 liters of fluids per day, varying with body size, activity level and climate.",
+      "relevant_keywords": ["water", "hydration", "fluid"],
+      "category": "hydration"
+    },
+    {
+      "id": "q08",
+      "question": "What is calcium good for and where do I get it?",
+      "expected_answer": "Calcium builds and maintains strong bones and teeth. Dairy, leafy greens, tofu and fortified foods are good sources.",
+      "relevant_keywords": ["calcium", "bone", "dairy"],
+      "category": "minerals"
+    },
+    {
+      "id": "q09",
+      "question": "Are carbohydrates bad for you?",
+      "expected_answer": "Carbohydrates are the body's main energy source. Quality matters more than avoidance — favor whole grains, fruits and vegetables over refined sugars.",
+      "relevant_keywords": ["carbohydrate", "energy", "glucose", "whole grain"],
+      "category": "macronutrients"
+    },
+    {
+      "id": "q10",
+      "question": "What foods help with a balanced healthy diet?",
+      "expected_answer": "A balanced diet emphasizes vegetables, fruits, whole grains, lean proteins and healthy fats while limiting added sugar, salt and processed foods.",
+      "relevant_keywords": ["balanced diet", "vegetable", "whole grain", "healthy eating"],
+      "category": "healthy_eating"
+    },
+    {
+      "id": "q11",
+      "question": "What is vitamin D and why do I need it?",
+      "expected_answer": "Vitamin D helps the body absorb calcium for bone health and supports immune function. It comes from sunlight, fatty fish and fortified foods.",
+      "relevant_keywords": ["vitamin d", "calcium", "bone", "sunlight"],
+      "category": "vitamins"
+    },
+    {
+      "id": "q12",
+      "question": "How many calories are in one gram of fat versus protein?",
+      "expected_answer": "Fat provides about 9 calories per gram, while protein and carbohydrates provide about 4 calories per gram.",
+      "relevant_keywords": ["9 kcal", "4 kcal", "calorie", "gram"],
+      "category": "macronutrients"
+    },
+    {
+      "id": "q13",
+      "question": "What is potassium's role and what foods contain it?",
+      "expected_answer": "Potassium helps regulate blood pressure, fluid balance and muscle function. Bananas, potatoes, beans and leafy greens are good sources.",
+      "relevant_keywords": ["potassium", "blood pressure", "electrolyte"],
+      "category": "minerals"
+    },
+    {
+      "id": "q14",
+      "question": "Is eating late at night bad for weight gain?",
+      "expected_answer": "Total daily calorie intake matters more than timing; weight gain results from consistently eating more energy than you expend, regardless of the hour.",
+      "relevant_keywords": ["weight", "calorie", "energy balance"],
+      "category": "weight_management"
+    },
+    {
+      "id": "q15",
+      "question": "What are complete versus incomplete proteins?",
+      "expected_answer": "Complete proteins contain all nine essential amino acids (mostly animal foods and soy); incomplete proteins lack one or more and can be combined from plant sources.",
+      "relevant_keywords": ["protein", "amino acid", "essential"],
+      "category": "protein"
+    }
+  ]
+}

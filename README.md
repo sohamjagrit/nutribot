@@ -9,24 +9,29 @@ Deployed on **AWS EC2** and accessible via a streaming chat UI.
 ## Architecture
 
 ```
-User → FastAPI → LangGraph ReAct Agent (Claude)
-                        │
-              ┌─────────┴──────────┐
-              ▼                    ▼
-   retrieve_nutrition_info    calculate_macros
-              │
-   Pinecone (vector search)
-      top-15 candidates
-              │
-   Cross-encoder reranker
-      top-5 by relevance
-              │
-   Relevance gate → LLM context
+User → FastAPI → LangGraph pipeline
+                      │
+                   router (Haiku): classify + standalone query
+        ┌─────────────┼───────────────┐
+    nutrition       macros         off_topic
+        │             │               │
+    retrieve          │             refuse
+ Pinecone top-15      │
+ + cross-encoder      │
+ rerank top-5         │
+        │             │
+     grade (Haiku)    │
+     ┌───┴────┐       │
+ supported  unsupported
+     │        │ rewrite → retrieve (once) → refuse
+     └────────┴───────┴──→ answer (Sonnet) → END
 ```
 
-**Two-stage retrieval** separates recall (Pinecone ANN search) from precision (cross-encoder reranking), keeping the LLM context tight and relevant.
+Each LLM node has one role. A fast model routes, grades and rewrites; the main model only writes the final answer, strictly from retrieved context, with inline `[Source n]` citations.
 
-**ReAct agent loop** means the model can call tools multiple times per turn and chain reasoning across them before responding.
+**Two-stage retrieval** separates recall (Pinecone ANN search) from precision (cross-encoder reranking with a relevance gate).
+
+**Self-correcting retrieval:** if the grader decides the context can't answer the question, the query is rewritten and retried before the bot refuses.
 
 ---
 
@@ -34,14 +39,14 @@ User → FastAPI → LangGraph ReAct Agent (Claude)
 
 | Layer | Technology |
 |---|---|
-| LLM | Claude (Anthropic) via `langchain-anthropic` |
-| Agent framework | LangGraph `create_react_agent` |
+| LLMs | Claude Sonnet (answers), Claude Haiku (router/grader/rewriter) via `langchain-anthropic` |
+| Orchestration | LangGraph `StateGraph` |
 | Vector store | Pinecone |
 | Embeddings | `BAAI/bge-base-en-v1.5` (SentenceTransformer) |
 | Reranker | `cross-encoder/ms-marco-MiniLM-L-6-v2` |
-| Conversation memory | LangGraph `SqliteSaver` (persistent, per thread) |
+| Conversation memory | LangGraph `AsyncSqliteSaver` (persistent, per thread) |
 | Backend | FastAPI + uvicorn |
-| Observability | LangSmith |
+| Observability | LangSmith (optional) |
 | Deployment | Docker on AWS EC2 |
 
 ---
@@ -50,16 +55,16 @@ User → FastAPI → LangGraph ReAct Agent (Claude)
 
 ```
 nutribot/
-├── app.py                  # FastAPI app — /chat and /chat/stream endpoints
+├── app.py                  # FastAPI app: /chat and /chat/stream endpoints
 ├── config/settings.py      # Env-var config
 ├── src/
-│   ├── graph.py            # LangGraph ReAct agent definition
+│   ├── graph.py            # LangGraph pipeline (router → retrieve → grade → answer)
 │   ├── retriever.py        # Pinecone query + BGE embedding
-│   ├── reranker.py         # Cross-encoder reranking + relevance gate
-│   └── tools.py            # LangChain tools exposed to the agent
-├── scripts/
-│   └── ingest.py           # Chunk, embed, and upsert docs to Pinecone
-├── data/raw/               # Source documents (articles + USDA CSV)
+│   ├── reranker.py         # Cross-encoder reranking
+│   └── tools.py            # Macro calculator
+├── scripts/ingest.py       # Chunk, embed, and upsert docs to Pinecone
+├── eval/                   # Golden set + eval harness (retrieval and end-to-end metrics)
+├── data/raw/               # Source documents (not committed)
 └── static/index.html       # Chat UI (streaming, markdown, source citations)
 ```
 
@@ -123,3 +128,28 @@ docker run -p 8000:8000 --env-file .env nutribot
 ```
 
 `thread_id` scopes conversation memory — each browser session gets its own thread.
+
+---
+
+## Evaluation
+
+```bash
+uv run python eval/run_eval.py run --tag my_run                      # full run
+uv run python eval/run_eval.py run --tag my_run --retrieval-only     # free, no LLM calls
+uv run python eval/run_eval.py compare eval/results/baseline.json eval/results/my_run.json
+```
+
+---
+
+## Deploy on AWS EC2
+
+```bash
+# On the instance (Docker installed, security group open on port 80)
+git clone https://github.com/sohamjagrit/NutriBot && cd NutriBot
+cp .env.example .env   # fill in PINECONE_API_KEY and ANTHROPIC_API_KEY
+docker build -t nutribot .
+docker run -d --name nutribot --restart unless-stopped -p 80:8000 \
+  --env-file .env -v nutribot-data:/app/data nutribot
+```
+
+The named volume keeps SQLite conversation memory across container restarts.

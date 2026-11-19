@@ -9,12 +9,11 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from langchain_core.messages import HumanMessage, ToolMessage
+from langchain_core.messages import HumanMessage
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from pydantic import BaseModel
 from config.settings import SQLITE_DB_PATH
 from src.graph import create_graph
-from src.tools import parse_sources_from_tool_output
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 
@@ -88,15 +87,10 @@ async def chat(req: ChatRequest) -> ChatResponse:
         config=_run_config(req),
     )
     answer = result["messages"][-1].content
-    sources = []
-    for msg in result["messages"]:
-        if isinstance(msg, ToolMessage) and msg.name == "retrieve_nutrition_info":
-            sources = parse_sources_from_tool_output(msg.content)
-            break
     return ChatResponse(
         question=req.question,
         answer=answer,
-        sources=sources,
+        sources=result["docs"] if result["supported"] else [],
         needs_clarification=False,
     )
 
@@ -117,7 +111,10 @@ async def chat_stream(req: ChatRequest):
             ):
                 kind = event["event"]
 
-                if kind == "on_chat_model_stream":
+                node = event.get("metadata", {}).get("langgraph_node")
+
+                # Only the answer node's tokens are shown; router/grader output is internal.
+                if kind == "on_chat_model_stream" and node == "answer":
                     content = event["data"]["chunk"].content
                     if isinstance(content, list):
                         content = "".join(
@@ -127,12 +124,14 @@ async def chat_stream(req: ChatRequest):
                     if content:
                         yield f"data: {json.dumps({'type': 'chunk', 'content': content})}\n\n"
 
-                elif kind == "on_tool_end" and event["name"] == "retrieve_nutrition_info":
-                    output = event["data"].get("output")
-                    text = output.content if hasattr(output, "content") else str(output or "")
-                    sources = parse_sources_from_tool_output(text)
-                    if sources:
-                        meta["sources"] = sources
+                # Refusals are static text, so emit them whole when the node finishes.
+                elif kind == "on_chain_end" and event["name"] == "refuse" and node == "refuse":
+                    text = event["data"]["output"]["messages"][-1].content
+                    yield f"data: {json.dumps({'type': 'chunk', 'content': text})}\n\n"
+
+            final = await graph.aget_state(_run_config(req))
+            if final.values.get("route") == "nutrition" and final.values.get("supported"):
+                meta["sources"] = final.values["docs"]
 
             yield f"data: {json.dumps({'type': 'done', **meta})}\n\n"
         except Exception:

@@ -8,7 +8,7 @@
 logs/
 .cache/
 
-# Data (raw + generated; the source of truth is S3 / Pinecone)
+# Data (raw sources + SQLite memory; the source of truth is Pinecone)
 data/
 
 # Python
@@ -45,8 +45,4 @@ htmlcov/
 # macOS
 .DS_Store
 
-.claude
-
-# guides
-ROADMAP.md
-PHASE1.md
+.claude/
