@@ -10,19 +10,36 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from langchain_core.messages import HumanMessage
+from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from pydantic import BaseModel
-from config.settings import SQLITE_DB_PATH
+from config.settings import MCP_NUTRITION_URL, SQLITE_DB_PATH
 from src.graph import create_graph
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 
 graph = None
+mcp_tools: list = []  # OpenNutrition food-lookup tools; empty if the MCP server is unreachable
+
+
+async def load_mcp_tools() -> list:
+    """Load food tools from the MCP container once. Degrades to [] so the app still starts."""
+    try:
+        client = MultiServerMCPClient(
+            {"opennutrition": {"transport": "streamable_http", "url": MCP_NUTRITION_URL}}
+        )
+        tools = await client.get_tools()
+        logging.info("Loaded %d MCP tools: %s", len(tools), [t.name for t in tools])
+        return tools
+    except Exception:
+        logging.warning("MCP server unreachable at %s; food lookup disabled", MCP_NUTRITION_URL, exc_info=True)
+        return []
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global graph
+    global graph, mcp_tools
+    mcp_tools = await load_mcp_tools()
     os.makedirs(os.path.dirname(SQLITE_DB_PATH) or ".", exist_ok=True)
     async with AsyncSqliteSaver.from_conn_string(SQLITE_DB_PATH) as checkpointer:
         graph = create_graph(checkpointer)

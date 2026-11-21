@@ -103,9 +103,13 @@ Open `http://localhost:8000` in your browser.
 ### Docker
 
 ```bash
-docker build -t nutribot .
-docker run -p 8000:8000 --env-file .env nutribot
+cp .env.example .env   # fill in keys
+docker compose up --build
 ```
+
+Compose runs NutriBot plus the OpenNutrition MCP food-lookup server on a private network
+(the MCP port is not published; it has no auth). NutriBot still starts if it is down,
+with food lookup disabled.
 
 ---
 
@@ -144,12 +148,18 @@ uv run python eval/run_eval.py compare eval/results/baseline.json eval/results/m
 ## Deploy on AWS EC2
 
 ```bash
-# On the instance (Docker installed, security group open on port 80)
+# On the instance (Docker + compose plugin installed, security group open on port 80)
 git clone https://github.com/sohamjagrit/NutriBot && cd NutriBot
 cp .env.example .env   # fill in PINECONE_API_KEY and ANTHROPIC_API_KEY
-docker build -t nutribot .
-docker run -d --name nutribot --restart unless-stopped -p 80:8000 \
-  --env-file .env -v nutribot-data:/app/data nutribot
+docker compose up -d --build
+docker compose logs nutribot | grep "MCP tools"   # confirm food tools loaded
 ```
 
-The named volume keeps SQLite conversation memory across container restarts.
+The `nutribot-data` volume keeps SQLite conversation memory across container restarts.
+
+---
+
+## Data attribution
+
+Food data: [OpenNutrition](https://www.opennutrition.app) (ODbL / DbCL), served by
+[mcp-opennutrition](https://github.com/deadletterq/mcp-opennutrition) (MIT).

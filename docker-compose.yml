@@ -1,0 +1,29 @@
+services:
+  nutribot:
+    build: .
+    ports:
+      - "80:8000"
+    env_file: .env
+    environment:
+      MCP_NUTRITION_URL: http://opennutrition:3000/mcp
+    volumes:
+      - nutribot-data:/app/data
+    depends_on:
+      - opennutrition
+    restart: unless-stopped
+    networks: [internal]
+
+  # Food lookup MCP server. No auth, so NO `ports:` -- reachable only on the private network.
+  opennutrition:
+    # TODO: pin by digest (image: deadletterq/mcp-opennutrition@sha256:...) once resolved with Docker.
+    image: deadletterq/mcp-opennutrition:latest
+    environment:
+      PORT: "3000"  # source defaults to 9113 otherwise
+    restart: unless-stopped
+    networks: [internal]
+
+volumes:
+  nutribot-data:
+
+networks:
+  internal:
