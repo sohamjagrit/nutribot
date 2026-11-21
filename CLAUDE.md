@@ -26,6 +26,7 @@ tests/               test_tools.py (calculators), test_mcp.py (lifespan degrades
 - Baseline (old ReAct agent): precision@5 0.893, MRR 0.967, 16.8s avg, $0.0225/query,
   correctness 80%, groundedness 13% (judge may be too strict; verify by hand).
 - Multi-agent graph evaluated (`eval/results/multiagent.json`) but NOT deployed. EC2 still runs the old version.
+  **Deploy policy: do NOT deploy until all steps 1-7 are built.** No interim redeploys; the first deploy ships everything.
 - Steps 1-2 done (PR #1, branch `mcp-addition`). MCP tools are loaded into `app.mcp_tools` at startup
   but NO graph node uses them yet (step 3). Degraded mode: if MCP is down, `mcp_tools == []` and the app still starts.
 - MCP verified locally: listens on 3000 (`PORT=3000`), path `/mcp`, 4 tools load, no host port mapping.
@@ -41,7 +42,7 @@ tests/               test_tools.py (calculators), test_mcp.py (lifespan degrades
 
 ## Target (what each item must make true)
 
-Run `eval --tag multiagent` and redeploy the current version first (step 0). Then, in order:
+Step 0 (eval done; redeploy deferred): do NOT redeploy until all steps below are built. Then, in order:
 
 1. **Calculators + tests** (`src/tools.py`, `tests/`): pure `bmr` (Mifflin-St Jeor), `tdee` (activity
    1.2/1.375/1.55/1.725/1.9), `goal_calories` (lose -500, gain +300, floor 1500 male / 1200 female),
