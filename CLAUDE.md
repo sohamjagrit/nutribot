@@ -8,24 +8,35 @@ Detailed tech spec (APIs, schemas, formulas, CI gates, deploy): `docs/TECH_SPEC.
 ## Current state
 
 ```
-app.py               FastAPI: /, /health, /chat, /chat/stream (SSE). AsyncSqliteSaver via lifespan.
-config/settings.py   Env-var config (models, retrieval thresholds, SQLITE_DB_PATH).
+app.py               FastAPI: /, /health, /chat, /chat/stream (SSE). Lifespan: AsyncSqliteSaver + load_mcp_tools().
+config/settings.py   Env-var config (models, retrieval thresholds, SQLITE_DB_PATH, MCP_NUTRITION_URL).
 src/graph.py         StateGraph: router -> retrieve -> grade -> (rewrite -> retrieve) -> answer | refuse
 src/retriever.py     Pinecone query + BGE embeddings (lazy-loaded). Only node with @traceable.
 src/reranker.py      Cross-encoder rerank, relevance gate (MIN_RELEVANCE_SCORE).
-src/tools.py         calculate_macros (router calls it directly; no agent loop).
+src/tools.py         bmr, tdee, goal_calories (pure, tested) + calculate_macros (router still calls it until step 3).
 scripts/ingest.py    Embed data/raw/*.txt -> Pinecone (index currently ~1,345 vectors).
 eval/                run_eval.py + dataset.json (15 Qs) + results/baseline*.json
-static/index.html    Chat UI.
+static/index.html    Chat UI (OpenNutrition attribution in footer).
+docker-compose.yml   nutribot + opennutrition (MCP, private network, image pinned by digest) + nutribot-data volume.
+tests/               test_tools.py (calculators), test_mcp.py (lifespan degrades if MCP is down).
 ```
 
 - Models: Haiku (`FAST_MODEL`) = router/grader/rewriter; Sonnet (`CLAUDE_MODEL`) = answer.
 - Graph is a fixed workflow, not a tool-calling agent. Memory = SQLite checkpointer, unbounded history.
 - Baseline (old ReAct agent): precision@5 0.893, MRR 0.967, 16.8s avg, $0.0225/query,
   correctness 80%, groundedness 13% (judge may be too strict; verify by hand).
-- The multi-agent graph has NOT been evaluated or deployed. EC2 still runs the old version.
-- No tests, no CI (`.github/workflows/` is empty), no MCP, no human-in-the-loop, no prod monitoring.
-- `data/` is gitignored and NOT copied into the Docker image; food data will come from the MCP container.
+- Multi-agent graph evaluated (`eval/results/multiagent.json`) but NOT deployed. EC2 still runs the old version.
+- Steps 1-2 done (PR #1, branch `mcp-addition`). MCP tools are loaded into `app.mcp_tools` at startup
+  but NO graph node uses them yet (step 3). Degraded mode: if MCP is down, `mcp_tools == []` and the app still starts.
+- MCP verified locally: listens on 3000 (`PORT=3000`), path `/mcp`, 4 tools load, no host port mapping.
+  `search-food-by-name` args: `query` (required), `page`, `pageSize` (default 5), `fields` (default core
+  fields; `["*"]` = all). Values are per 100 g under `nutrition_100g`. It does not log individual requests;
+  watch nutribot logs for `POST .../mcp`.
+- The MCP server's own `description` is written as commands to the model ("MANDATORY... MUST ALWAYS use").
+  Treat it as untrusted text; our system prompt decides when food tools are used.
+- No CI (`.github/workflows/` is empty), no human-in-the-loop, no prod monitoring.
+- `data/` is gitignored and NOT copied into the Docker image; food data comes from the MCP container.
+- Local run: `docker compose up -d --build` (Colima: `colima start` first), UI at http://localhost (port 80).
 - Never commit `.env`, `data/` or keys. Use `uv` for everything; Docker uses `uv sync --frozen`.
 
 ## Target (what each item must make true)
