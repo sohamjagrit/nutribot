@@ -23,6 +23,7 @@ dependencies = [
     "numpy>=1.24.0",
     "langsmith>=0.8.15",
     "langgraph-checkpoint-sqlite>=2.0.0",
+    "langchain-mcp-adapters>=0.3.2",
 ]
 
 # CPU-only PyTorch on Linux to avoid pulling CUDA wheels (~6 GB)

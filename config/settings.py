@@ -20,3 +20,6 @@ RERANK_TOP_K: int = int(os.getenv("RERANK_TOP_K", "5"))             # passed to 
 MIN_RELEVANCE_SCORE: float = float(os.getenv("MIN_RELEVANCE_SCORE", "-4.0"))  # ms-marco logit threshold
 
 SQLITE_DB_PATH: str = os.getenv("SQLITE_DB_PATH", "data/memory.db")
+
+# OpenNutrition MCP server (food lookup). Private Docker network only; no auth.
+MCP_NUTRITION_URL: str = os.getenv("MCP_NUTRITION_URL", "http://localhost:3000/mcp")
