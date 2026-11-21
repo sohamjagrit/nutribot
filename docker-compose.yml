@@ -15,8 +15,7 @@ services:
 
   # Food lookup MCP server. No auth, so NO `ports:` -- reachable only on the private network.
   opennutrition:
-    # TODO: pin by digest (image: deadletterq/mcp-opennutrition@sha256:...) once resolved with Docker.
-    image: deadletterq/mcp-opennutrition:latest
+    image: deadletterq/mcp-opennutrition@sha256:e7a9a8747741eeff3b9d647042fda04476a6ab4f632bb50df40d663a4ea9abd8
     environment:
       PORT: "3000"  # source defaults to 9113 otherwise
     restart: unless-stopped
