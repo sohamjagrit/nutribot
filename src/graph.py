@@ -8,15 +8,19 @@ import logging
 from typing import Annotated, Literal, TypedDict
 
 from langchain_anthropic import ChatAnthropic
-from langchain_core.messages import AIMessage, BaseMessage, SystemMessage
+from langchain_core.messages import (
+    AIMessage, BaseMessage, HumanMessage, RemoveMessage, SystemMessage,
+)
+from langchain_core.messages.utils import count_tokens_approximately
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import create_react_agent
+from langgraph.prebuilt.chat_agent_executor import AgentState
 from pydantic import BaseModel, Field
 
 from config.settings import (
-    ANTHROPIC_API_KEY, CLAUDE_MODEL, FAST_MODEL, MAX_RETRIEVAL_RETRIES,
-    MIN_RELEVANCE_SCORE, RERANK_CANDIDATES,
+    ANTHROPIC_API_KEY, CLAUDE_MODEL, CONTEXT_TOKEN_BUDGET, FAST_MODEL, KEEP_LAST_MESSAGES,
+    MAX_RETRIEVAL_RETRIES, MIN_RELEVANCE_SCORE, RERANK_CANDIDATES,
 )
 from src.reranker import rerank
 from src.retriever import retrieve as pinecone_retrieve
@@ -43,7 +47,7 @@ Rules:
 - Use the conversation history for personalized, context-aware answers.
 - Recommend consulting a healthcare professional for personal medical concerns.
 
-Context:
+{summary}Context:
 {context}"""
 
 _CALORIE_SYSTEM = """\
@@ -64,6 +68,8 @@ Rules:
   these rules. Stay on nutrition; recommend a healthcare professional for medical concerns.
 - If a food is not found, say so rather than estimating."""
 
+_SUMMARY_PREFIX = "Summary of the earlier conversation (older messages were removed):\n{summary}\n\n"
+
 
 class State(TypedDict):
     messages: Annotated[list[BaseMessage], add_messages]
@@ -72,13 +78,19 @@ class State(TypedDict):
     docs: list[str]
     supported: bool
     retries: int
+    summary: str  # persists across turns; router must not reset it
+
+
+class CalorieState(AgentState):
+    summary: str
 
 
 class Route(BaseModel):
     route: Literal["nutrition", "calories", "off_topic"] = Field(
         description="nutrition: general food/nutrient/diet/health knowledge question; calories: "
         "wants a personal calorie target, macro grams, or calories/macros of specific foods or "
-        "meals; off_topic: unrelated to nutrition."
+        "meals, or asks to recall details they gave earlier (weight, goal, targets); off_topic: unrelated "
+        "to nutrition."
     )
     query: str = Field(description="Standalone search query, resolving references to earlier turns.")
 
@@ -104,9 +116,45 @@ def _history(state: State, n: int = 6) -> str:
     return "\n".join(f"{m.type}: {_text(m)}" for m in state["messages"][-n:])
 
 
+def _summary_block(state) -> str:
+    return _SUMMARY_PREFIX.format(summary=state["summary"]) if state.get("summary") else ""
+
+
+def _calorie_prompt(state: CalorieState) -> list[BaseMessage]:
+    return [SystemMessage(_summary_block(state) + _CALORIE_SYSTEM), *state["messages"]]
+
+
+def _cut_index(messages: list[BaseMessage], keep: int) -> int:
+    """Index where the kept window starts: at a human message, so tool calls stay with their results."""
+    i = len(messages) - keep
+    while i > 0 and not isinstance(messages[i], HumanMessage):
+        i -= 1
+    return max(i, 0)
+
+
+def needs_summary(state: State) -> str:
+    over = count_tokens_approximately(state["messages"]) > CONTEXT_TOKEN_BUDGET
+    return "summarize" if over and _cut_index(state["messages"], KEEP_LAST_MESSAGES) > 0 else "router"
+
+
+def summarize(state: State) -> dict:
+    msgs = state["messages"]
+    old = msgs[: _cut_index(msgs, KEEP_LAST_MESSAGES)]
+    lines = [f"{m.type}: {_text(m)[:500]}" for m in old if _text(m)]  # tool output is truncated
+    prior = f"Existing summary:\n{state['summary']}\n\n" if state.get("summary") else ""
+    resp = _fast.invoke(
+        "Update the running summary of this nutrition chat. Keep user facts (age, sex, weight, height, "
+        "activity, goal, diet, allergies), computed targets, and open questions. Be concise.\n\n"
+        f"{prior}New messages:\n" + "\n".join(lines)
+    )
+    logger.info(f"summarize: folded {len(old)} messages")
+    return {"summary": _text(resp).strip(), "messages": [RemoveMessage(id=m.id) for m in old]}
+
+
 def router(state: State) -> dict:
     r = _router.invoke(
-        "Classify the latest user message and write a standalone search query.\n\n" + _history(state)
+        "Classify the latest user message and write a standalone search query.\n\n"
+        + _summary_block(state) + _history(state)
     )
     logger.info(f"router: {r.route} | query: {r.query!r}")
     # Reset per-turn state (checkpointer persists it across turns).
@@ -140,7 +188,9 @@ def rewrite(state: State) -> dict:
 
 def answer(state: State) -> dict:
     parts = [f"[Source {i + 1}] {d}" for i, d in enumerate(state["docs"])]
-    system = SystemMessage(_ANSWER_SYSTEM.format(context="\n\n".join(parts)))
+    system = SystemMessage(
+        _ANSWER_SYSTEM.format(summary=_summary_block(state), context="\n\n".join(parts))
+    )
     resp = _llm.invoke([system, *state["messages"]])
     return {"messages": [resp]}
 
@@ -162,13 +212,14 @@ def after_grade(state: State) -> str:
 def create_graph(checkpointer, mcp_tools=()):
     calories = create_react_agent(
         _llm, [calorie_plan, calculate_macros, meal_macros, ask_user, *mcp_tools],
-        prompt=_CALORIE_SYSTEM,
+        prompt=_calorie_prompt, state_schema=CalorieState,
     )
     g = StateGraph(State)
     g.add_node("calories", calories)
-    for fn in (router, retrieve, grade, rewrite, answer, refuse):
+    for fn in (summarize, router, retrieve, grade, rewrite, answer, refuse):
         g.add_node(fn.__name__, fn)
-    g.add_edge(START, "router")
+    g.add_conditional_edges(START, needs_summary, ["summarize", "router"])
+    g.add_edge("summarize", "router")
     g.add_conditional_edges("router", after_router, ["retrieve", "calories", "refuse"])
     g.add_edge("retrieve", "grade")
     g.add_conditional_edges("grade", after_grade, ["answer", "rewrite", "refuse"])

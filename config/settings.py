@@ -19,6 +19,10 @@ RERANK_CANDIDATES: int = int(os.getenv("RERANK_CANDIDATES", "15"))  # fetched fr
 RERANK_TOP_K: int = int(os.getenv("RERANK_TOP_K", "5"))             # passed to LLM after rerank
 MIN_RELEVANCE_SCORE: float = float(os.getenv("MIN_RELEVANCE_SCORE", "-4.0"))  # ms-marco logit threshold
 
+# Context management: when history exceeds the token budget, older messages are folded into a summary.
+CONTEXT_TOKEN_BUDGET: int = int(os.getenv("CONTEXT_TOKEN_BUDGET", "6000"))
+KEEP_LAST_MESSAGES: int = int(os.getenv("KEEP_LAST_MESSAGES", "6"))
+
 SQLITE_DB_PATH: str = os.getenv("SQLITE_DB_PATH", "data/memory.db")
 
 # OpenNutrition MCP server (food lookup). Private Docker network only; no auth.

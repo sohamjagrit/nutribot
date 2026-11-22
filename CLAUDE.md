@@ -10,7 +10,7 @@ Detailed tech spec (APIs, schemas, formulas, CI gates, deploy): `docs/TECH_SPEC.
 ```
 app.py               FastAPI: /, /health, /chat, /chat/stream (SSE). Lifespan: AsyncSqliteSaver + load_mcp_tools().
 config/settings.py   Env-var config (models, retrieval thresholds, SQLITE_DB_PATH, MCP_NUTRITION_URL).
-src/graph.py         StateGraph: router -> retrieve -> grade -> (rewrite -> retrieve) -> answer | refuse;
+src/graph.py         StateGraph: (summarize if over budget) -> router -> retrieve -> grade -> (rewrite -> retrieve) -> answer | refuse;
                      router -> calories (create_react_agent: MCP food tools + calculators + ask_user)
 src/retriever.py     Pinecone query + BGE embeddings (lazy-loaded). Only node with @traceable.
 src/reranker.py      Cross-encoder rerank, relevance gate (MIN_RELEVANCE_SCORE).
@@ -20,12 +20,13 @@ scripts/ingest.py    Embed data/raw/*.txt -> Pinecone (index currently ~1,345 ve
 eval/                run_eval.py + dataset.json (15 Qs) + results/baseline*.json
 static/index.html    Chat UI (OpenNutrition attribution in footer).
 docker-compose.yml   nutribot + opennutrition (MCP, private network, image pinned by digest) + nutribot-data volume.
-tests/               test_tools.py (calculators, meal_macros, interrupt/resume of calorie_plan + ask_user),
+tests/               test_summarize.py (cut point, no-op under budget, summary folding),
+                     test_tools.py (calculators, meal_macros, interrupt/resume of calorie_plan + ask_user),
                      test_mcp.py (lifespan degrades if MCP is down).
 ```
 
 - Models: Haiku (`FAST_MODEL`) = router/grader/rewriter; Sonnet (`CLAUDE_MODEL`) = answer.
-- Graph is a fixed workflow except the `calories` node, which is a tool-calling agent. Memory = SQLite checkpointer, unbounded history.
+- Graph is a fixed workflow except the `calories` node, which is a tool-calling agent. Memory = SQLite checkpointer; history is summarized once it exceeds `CONTEXT_TOKEN_BUDGET`.
 - Baseline (old ReAct agent): precision@5 0.893, MRR 0.967, 16.8s avg, $0.0225/query,
   correctness 80%, groundedness 13% (judge may be too strict; verify by hand).
 - Multi-agent graph evaluated (`eval/results/multiagent.json`) but NOT deployed. EC2 still runs the old version.
@@ -34,6 +35,13 @@ tests/               test_tools.py (calculators, meal_macros, interrupt/resume o
   meal macros via MCP; RAG and off-topic unchanged), not yet merged. MCP tools are loaded into
   `app.mcp_tools` at startup and passed to `create_graph`. Degraded mode: if MCP is down,
   `mcp_tools == []`, the app still starts and the agent has calculators only.
+- Step 4 built on branch `context-summary` (not merged). `summarize` (Haiku) runs from START only when
+  `count_tokens_approximately(messages) > CONTEXT_TOKEN_BUDGET` (6000); it folds older messages plus the
+  existing `summary` into `State.summary`, removes them with `RemoveMessage`, keeps the last
+  `KEEP_LAST_MESSAGES` (6), moving the cut back to a HumanMessage so tool calls stay with results.
+  Summary is injected into router, answer and calorie-agent prompts. Router `calories` route also covers
+  "recall what I told you" questions. Manually verified with a tiny budget (recall works); full app and
+  MCP tools not exercised. No eval item yet for summarization.
 - Interrupt API: `/chat/stream` emits `{"type":"interrupt","fields":[...]}` or `{"type":"interrupt","confirm":"..."}`
   and stops; resume with POST `{"resume": <dict|bool>, "thread_id": ...}`. UI converts lb/in to kg/cm.
 - Calorie-agent eval items are NOT in `eval/dataset.json` (it is retrieval-shaped); the deterministic
