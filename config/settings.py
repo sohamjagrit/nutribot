@@ -27,3 +27,7 @@ SQLITE_DB_PATH: str = os.getenv("SQLITE_DB_PATH", "data/memory.db")
 
 # OpenNutrition MCP server (food lookup). Private Docker network only; no auth.
 MCP_NUTRITION_URL: str = os.getenv("MCP_NUTRITION_URL", "http://localhost:3000/mcp")
+
+# Run metadata for traces
+ENV: str = os.getenv("ENV", "dev")
+GIT_SHA: str = os.getenv("GIT_SHA", "dev")

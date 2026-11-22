@@ -48,7 +48,7 @@ The `calories` route is a ReAct agent for calorie targets, macro grams and the m
 | Reranker | `cross-encoder/ms-marco-MiniLM-L-6-v2` |
 | Conversation memory | LangGraph `AsyncSqliteSaver` (persistent, per thread) |
 | Backend | FastAPI + uvicorn |
-| Observability | LangSmith (optional) |
+| Observability | LangSmith tracing + user feedback (optional; set `LANGSMITH_*` in `.env`) |
 | Deployment | Docker on AWS EC2 |
 
 ---

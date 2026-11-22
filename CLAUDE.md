@@ -42,6 +42,12 @@ tests/               test_summarize.py (cut point, no-op under budget, summary f
   Summary is injected into router, answer and calorie-agent prompts. Router `calories` route also covers
   "recall what I told you" questions. Manually verified with a tiny budget (recall works); full app and
   MCP tools not exercised. No eval item yet for summarization.
+- Step 5 built on branch `context-summary` (uncommitted): `_run_config` sets run_id/tags/metadata (thread_id, git_sha,
+  models); `rerank` is `@traceable`; `run_id` is returned in `done`/`/chat`; `POST /feedback` + UI thumbs call
+  `create_feedback(key="user_score")`; `scripts/push_dataset.py` uploads the eval set (done: `nutribot-eval`, 15 examples).
+  Env renamed to `LANGSMITH_*`. Verified locally: trace has tags/metadata, nested `rerank`, feedback lands.
+  NOT verified: MCP tool spans (calorie path). TODO outside code: online groundedness evaluator (LangSmith UI) and
+  tracing env on EC2 at deploy.
 - Interrupt API: `/chat/stream` emits `{"type":"interrupt","fields":[...]}` or `{"type":"interrupt","confirm":"..."}`
   and stops; resume with POST `{"resume": <dict|bool>, "thread_id": ...}`. UI converts lb/in to kg/cm.
 - Calorie-agent eval items are NOT in `eval/dataset.json` (it is retrieval-shaped); the deterministic

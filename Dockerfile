@@ -28,6 +28,9 @@ COPY config/ config/
 COPY src/ src/
 COPY static/ static/
 
+ARG GIT_SHA=dev
+ENV GIT_SHA=$GIT_SHA
+
 # Create data dir for SQLite conversation memory
 RUN mkdir -p /app/data
 
