@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 from fastapi import FastAPI, HTTPException
@@ -14,7 +15,8 @@ from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.types import Command
 from pydantic import BaseModel
-from config.settings import MCP_NUTRITION_URL, SQLITE_DB_PATH
+from config.settings import CLAUDE_MODEL, ENV, FAST_MODEL, GIT_SHA, MCP_NUTRITION_URL, SQLITE_DB_PATH
+from langsmith import Client
 from src.graph import create_graph
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
@@ -72,6 +74,13 @@ class ChatResponse(BaseModel):
     sources: list[str]
     needs_clarification: bool
     interrupt: dict | None = None
+    run_id: str | None = None
+
+
+class FeedbackRequest(BaseModel):
+    run_id: str
+    score: int  # 1 = thumbs up, 0 = thumbs down
+    comment: str | None = None
 
 
 def _graph_input(req: ChatRequest):
@@ -90,6 +99,12 @@ def _make_message(req: ChatRequest) -> HumanMessage:
 def _run_config(req: ChatRequest) -> dict:
     return {
         "run_name": "nutribot-chat",
+        "run_id": uuid.uuid4(),
+        "tags": [ENV, "nutribot"],
+        "metadata": {
+            "thread_id": req.thread_id, "git_sha": GIT_SHA,
+            "claude_model": CLAUDE_MODEL, "fast_model": FAST_MODEL,
+        },
         "configurable": {"thread_id": req.thread_id},
     }
 
@@ -108,11 +123,12 @@ async def health():
 async def chat(req: ChatRequest) -> ChatResponse:
     if req.resume is None and not req.question.strip():
         raise HTTPException(status_code=400, detail="Question cannot be empty")
-    result = await graph.ainvoke(_graph_input(req), config=_run_config(req))
+    config = _run_config(req)
+    result = await graph.ainvoke(_graph_input(req), config=config)
     if "__interrupt__" in result:
         return ChatResponse(
             question=req.question, answer="", sources=[], needs_clarification=True,
-            interrupt=result["__interrupt__"][0].value,
+            interrupt=result["__interrupt__"][0].value, run_id=str(config["run_id"]),
         )
     answer = result["messages"][-1].content
     return ChatResponse(
@@ -120,7 +136,14 @@ async def chat(req: ChatRequest) -> ChatResponse:
         answer=answer,
         sources=result["docs"] if result["supported"] else [],
         needs_clarification=False,
+        run_id=str(config["run_id"]),
     )
+
+
+@app.post("/feedback")
+async def feedback(req: FeedbackRequest):
+    Client().create_feedback(req.run_id, key="user_score", score=req.score, comment=req.comment)
+    return {"status": "ok"}
 
 
 @app.post("/chat/stream")
@@ -129,14 +152,16 @@ async def chat_stream(req: ChatRequest):
     if req.resume is None and not req.question.strip():
         raise HTTPException(status_code=400, detail="Question cannot be empty")
 
+    config = _run_config(req)
+
     async def event_stream():
-        meta: dict = {"sources": [], "needs_clarification": False}
+        meta: dict = {"sources": [], "needs_clarification": False, "run_id": str(config["run_id"])}
         spoke = False
         try:
             async for event in graph.astream_events(
                 _graph_input(req),
                 version="v2",
-                config=_run_config(req),
+                config=config,
             ):
                 kind = event["event"]
 
@@ -167,7 +192,7 @@ async def chat_stream(req: ChatRequest):
                     text = event["data"]["output"]["messages"][-1].content
                     yield f"data: {json.dumps({'type': 'chunk', 'content': text})}\n\n"
 
-            final = await graph.aget_state(_run_config(req))
+            final = await graph.aget_state(config)
             pending = [i.value for t in final.tasks for i in t.interrupts]
             if pending:
                 yield f"data: {json.dumps({'type': 'interrupt', **pending[0]})}\n\n"

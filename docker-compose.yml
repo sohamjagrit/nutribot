@@ -1,6 +1,9 @@
 services:
   nutribot:
-    build: .
+    build:
+      context: .
+      args:
+        GIT_SHA: ${GIT_SHA:-dev}
     ports:
       - "80:8000"
     env_file: .env

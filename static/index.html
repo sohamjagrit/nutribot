@@ -493,6 +493,8 @@ function addMessage(role, content, { html = false, time = new Date() } = {}) {
           <div class="bubble">${bubbleContent}</div>
           <div class="msg-actions">
             <button class="action-btn copy-btn" title="Copy response">${COPY_ICON} Copy</button>
+            <button class="action-btn fb-btn" data-score="1" title="Good answer" hidden>👍</button>
+            <button class="action-btn fb-btn" data-score="0" title="Bad answer" hidden>👎</button>
           </div>
         </div>
       </div>
@@ -510,6 +512,19 @@ function addMessage(role, content, { html = false, time = new Date() } = {}) {
       });
     });
   }
+
+  row.querySelectorAll('.fb-btn').forEach(btn => btn.addEventListener('click', () => {
+    if (!row._runId) return;
+    fetch('/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ run_id: row._runId, score: +btn.dataset.score }),
+    }).then(r => {
+      if (!r.ok) return;
+      row.querySelectorAll('.fb-btn').forEach(b => { b.disabled = true; b.classList.remove('copied'); });
+      btn.classList.add('copied');
+    });
+  }));
 
   chat.appendChild(row);
   if (isNearBottom()) scrollToBottom();
@@ -708,6 +723,8 @@ async function streamChat(body, question, botRow = null) {
           bubbleWrap.insertBefore(ask, bubbleWrap.querySelector('.msg-actions'));
           if (isNearBottom()) scrollToBottom();
         } else if (data.type === 'done') {
+          botRow._runId = data.run_id;
+          botRow.querySelectorAll('.fb-btn').forEach(b => { b.hidden = false; b.disabled = false; b.classList.remove('copied'); });
           bubble.innerHTML = renderMarkdown(fullText);
           const srcHtml = buildSources(data.sources);
           if (srcHtml) {

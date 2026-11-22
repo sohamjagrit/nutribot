@@ -1,6 +1,7 @@
 """Cross-encoder reranker — scores query-doc pairs and returns top-k by relevance."""
 
 import logging
+from langsmith import traceable
 from sentence_transformers import CrossEncoder
 from config.settings import RERANKER_MODEL, RERANK_TOP_K, MIN_RELEVANCE_SCORE
 
@@ -17,6 +18,7 @@ def _get_model() -> CrossEncoder:
     return _model
 
 
+@traceable(name="rerank", run_type="chain")
 def rerank(query: str, docs: list[str], top_k: int = RERANK_TOP_K) -> tuple[list[str], float]:
     """Score each doc against the query, return (top_k reranked docs, best score).
 
