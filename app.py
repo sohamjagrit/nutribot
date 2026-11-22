@@ -12,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from langchain_core.messages import HumanMessage
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+from langgraph.types import Command
 from pydantic import BaseModel
 from config.settings import MCP_NUTRITION_URL, SQLITE_DB_PATH
 from src.graph import create_graph
@@ -42,7 +43,7 @@ async def lifespan(app: FastAPI):
     mcp_tools = await load_mcp_tools()
     os.makedirs(os.path.dirname(SQLITE_DB_PATH) or ".", exist_ok=True)
     async with AsyncSqliteSaver.from_conn_string(SQLITE_DB_PATH) as checkpointer:
-        graph = create_graph(checkpointer)
+        graph = create_graph(checkpointer, mcp_tools)
         yield
 
 
@@ -59,9 +60,10 @@ app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), na
 
 
 class ChatRequest(BaseModel):
-    question: str
+    question: str = ""
     user_context: str = ""
     thread_id: str = "default"
+    resume: dict | bool | None = None  # answer to a pending interrupt (fields dict or confirm bool)
 
 
 class ChatResponse(BaseModel):
@@ -69,6 +71,13 @@ class ChatResponse(BaseModel):
     answer: str
     sources: list[str]
     needs_clarification: bool
+    interrupt: dict | None = None
+
+
+def _graph_input(req: ChatRequest):
+    if req.resume is not None:
+        return Command(resume=req.resume)
+    return {"messages": [_make_message(req)]}
 
 
 def _make_message(req: ChatRequest) -> HumanMessage:
@@ -97,12 +106,14 @@ async def health():
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat(req: ChatRequest) -> ChatResponse:
-    if not req.question.strip():
+    if req.resume is None and not req.question.strip():
         raise HTTPException(status_code=400, detail="Question cannot be empty")
-    result = await graph.ainvoke(
-        {"messages": [_make_message(req)]},
-        config=_run_config(req),
-    )
+    result = await graph.ainvoke(_graph_input(req), config=_run_config(req))
+    if "__interrupt__" in result:
+        return ChatResponse(
+            question=req.question, answer="", sources=[], needs_clarification=True,
+            interrupt=result["__interrupt__"][0].value,
+        )
     answer = result["messages"][-1].content
     return ChatResponse(
         question=req.question,
@@ -115,23 +126,32 @@ async def chat(req: ChatRequest) -> ChatResponse:
 @app.post("/chat/stream")
 async def chat_stream(req: ChatRequest):
     """SSE streaming endpoint — streams tokens as Claude generates."""
-    if not req.question.strip():
+    if req.resume is None and not req.question.strip():
         raise HTTPException(status_code=400, detail="Question cannot be empty")
 
     async def event_stream():
         meta: dict = {"sources": [], "needs_clarification": False}
+        spoke = False
         try:
             async for event in graph.astream_events(
-                {"messages": [_make_message(req)]},
+                _graph_input(req),
                 version="v2",
                 config=_run_config(req),
             ):
                 kind = event["event"]
 
-                node = event.get("metadata", {}).get("langgraph_node")
+                meta_ev = event.get("metadata", {})
+                node = meta_ev.get("langgraph_node")
+                in_calories = meta_ev.get("langgraph_checkpoint_ns", "").startswith("calories:")
 
-                # Only the answer node's tokens are shown; router/grader output is internal.
-                if kind == "on_chat_model_stream" and node == "answer":
+                # The agent may speak before and after tool calls; keep those paragraphs apart.
+                if kind == "on_chat_model_start" and in_calories and spoke:
+                    yield f"data: {json.dumps({'type': 'chunk', 'content': chr(10) * 2})}\n\n"
+                    spoke = False
+
+                # Only the answer node and the calorie agent's tokens are shown;
+                # router/grader output is internal.
+                if kind == "on_chat_model_stream" and (node == "answer" or in_calories):
                     content = event["data"]["chunk"].content
                     if isinstance(content, list):
                         content = "".join(
@@ -139,6 +159,7 @@ async def chat_stream(req: ChatRequest):
                             if isinstance(b, dict) and b.get("type") == "text"
                         )
                     if content:
+                        spoke = in_calories
                         yield f"data: {json.dumps({'type': 'chunk', 'content': content})}\n\n"
 
                 # Refusals are static text, so emit them whole when the node finishes.
@@ -147,6 +168,10 @@ async def chat_stream(req: ChatRequest):
                     yield f"data: {json.dumps({'type': 'chunk', 'content': text})}\n\n"
 
             final = await graph.aget_state(_run_config(req))
+            pending = [i.value for t in final.tasks for i in t.interrupts]
+            if pending:
+                yield f"data: {json.dumps({'type': 'interrupt', **pending[0]})}\n\n"
+                return
             if final.values.get("route") == "nutrition" and final.values.get("supported"):
                 meta["sources"] = final.values["docs"]
 

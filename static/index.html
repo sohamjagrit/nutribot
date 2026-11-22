@@ -334,6 +334,21 @@
   .composer-hint { font-size: 11px; color: var(--muted); text-align: center; margin-top: 6px; user-select: none; }
   .disclaimer    { text-align: center; font-size: 11px; color: var(--muted); padding: 4px 16px 10px; }
 
+  /* Interrupt form */
+  .ask-form {
+    display: flex; flex-direction: column; gap: 8px; margin-top: 8px;
+    padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px;
+    background: var(--bg); font-size: 13px;
+  }
+  .ask-form label { display: flex; align-items: center; gap: 8px; text-transform: capitalize; }
+  .ask-form label > :first-child { min-width: 0; }
+  .ask-form input, .ask-form select {
+    flex: 1; padding: 5px 8px; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--panel); color: var(--text); font: inherit;
+  }
+  .ask-form select + select, .ask-form input + select { flex: 0 0 auto; }
+  .ask-form p { margin: 0; }
+
   /* Error bubble */
   .error-bubble {
     background: #fef2f2; border: 1px solid #fecaca;
@@ -406,7 +421,6 @@ const welcomeEl     = document.getElementById('welcome');
 marked.setOptions({ breaks: true, gfm: true });
 
 let abortCtrl   = null;
-let userContext = '';
 const sessionId = (crypto.randomUUID?.() ??
   ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
     (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)));
@@ -568,8 +582,79 @@ async function sendQuestion(question) {
   input.value = '';
   input.style.height = 'auto';
   suggestionsEl.style.display = 'none';
-  setLoading(true);
+  await streamChat({ question, thread_id: sessionId }, question);
+}
 
+// ── Interrupt form (agent asks for missing details) ────────────────────────
+
+const LB_TO_KG = 0.45359237, IN_TO_CM = 2.54;
+const SELECTS = {
+  sex: ['male', 'female'],
+  activity: ['sedentary', 'light', 'moderate', 'active', 'very_active'],
+  goal: ['lose', 'maintain', 'gain'],
+};
+const UNITS = { weight_kg: ['kg', 'lb'], height_cm: ['cm', 'in'] };
+
+function buildForm(fields, question, botRow) {
+  const form = document.createElement('form');
+  form.className = 'ask-form';
+  form.innerHTML = fields.map(f => {
+    const label = f.replace(/_(kg|cm)$/, '').replace(/_/g, ' ');
+    let control;
+    if (SELECTS[f]) {
+      control = `<select name="${f}" required>${SELECTS[f].map(o => `<option>${o}</option>`).join('')}</select>`;
+    } else if (UNITS[f]) {
+      control = `<input name="${f}" type="number" step="any" min="0" required>
+        <select name="${f}__unit">${UNITS[f].map(o => `<option>${o}</option>`).join('')}</select>`;
+    } else if (f === 'age') {
+      control = `<input name="${f}" type="number" min="1" max="120" required>`;
+    } else {
+      control = `<input name="${f}" type="text" required>`;
+    }
+    return `<label>${escapeHtml(label)}${control}</label>`;
+  }).join('') + '<button type="submit" class="retry-btn">Continue</button>';
+
+  form.addEventListener('submit', e => {
+    e.preventDefault();
+    const fd = new FormData(form);
+    const answers = {};
+    for (const f of fields) {
+      let v = fd.get(f);
+      if (UNITS[f]) {
+        v = parseFloat(v);
+        const unit = fd.get(f + '__unit');
+        if (unit === 'lb') v *= LB_TO_KG;
+        if (unit === 'in') v *= IN_TO_CM;
+        v = Math.round(v * 10) / 10;
+      } else if (f === 'age') {
+        v = parseInt(v, 10);
+      }
+      answers[f] = v;
+    }
+    form.remove();
+    streamChat({ resume: answers, thread_id: sessionId }, question, botRow);
+  });
+  return form;
+}
+
+function buildConfirm(message, question, botRow) {
+  const box = document.createElement('div');
+  box.className = 'ask-form';
+  box.innerHTML = `<p>${escapeHtml(message)}</p>
+    <button class="retry-btn" data-ok="1">Yes</button> <button class="retry-btn" data-ok="0">No</button>`;
+  box.addEventListener('click', e => {
+    const ok = e.target.dataset?.ok;
+    if (ok === undefined) return;
+    box.remove();
+    streamChat({ resume: ok === '1', thread_id: sessionId }, question, botRow);
+  });
+  return box;
+}
+
+// ── Stream one request; botRow is reused when resuming after an interrupt ──
+
+async function streamChat(body, question, botRow = null) {
+  setLoading(true);
   const typing = addTypingIndicator();
   abortCtrl = new AbortController();
 
@@ -577,7 +662,7 @@ async function sendQuestion(question) {
     const res = await fetch('/chat/stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question, user_context: userContext, thread_id: sessionId }),
+      body: JSON.stringify(body),
       signal: abortCtrl.signal,
     });
 
@@ -589,11 +674,10 @@ async function sendQuestion(question) {
     }
 
     typing.remove();
-    const botRow = addMessage('bot', '', { html: true });
+    if (!botRow) botRow = addMessage('bot', '', { html: true });
     const bubble = botRow.querySelector('.bubble');
     const bubbleWrap = botRow.querySelector('.bubble-wrap');
-    let fullText = '';
-    let needsClarification = false;
+    let fullText = botRow._text || '';
 
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
@@ -614,7 +698,14 @@ async function sendQuestion(question) {
 
         if (data.type === 'chunk') {
           fullText += data.content;
+          botRow._text = fullText;
           bubble.innerHTML = renderMarkdown(fullText);
+          if (isNearBottom()) scrollToBottom();
+        } else if (data.type === 'interrupt') {
+          const ask = data.confirm
+            ? buildConfirm(data.confirm, question, botRow)
+            : buildForm(data.fields, question, botRow);
+          bubbleWrap.insertBefore(ask, bubbleWrap.querySelector('.msg-actions'));
           if (isNearBottom()) scrollToBottom();
         } else if (data.type === 'done') {
           bubble.innerHTML = renderMarkdown(fullText);
@@ -624,26 +715,11 @@ async function sendQuestion(question) {
             srcEl.innerHTML = srcHtml;
             bubbleWrap.insertBefore(srcEl, bubbleWrap.querySelector('.msg-actions'));
           }
-          needsClarification = data.needs_clarification;
           if (isNearBottom()) scrollToBottom();
         } else if (data.type === 'error') {
           bubble.innerHTML = `<p style="color:var(--muted)">⚠️ ${escapeHtml(data.message)}</p>`;
         }
       }
-    }
-
-    if (needsClarification) {
-      input.placeholder = 'Answer the clarifying question above…';
-      const handler = e => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-          e.preventDefault();
-          userContext = (userContext ? userContext + ', ' : '') + input.value.trim();
-          input.removeEventListener('keydown', handler);
-          input.placeholder = 'Ask a nutrition question…';
-          sendQuestion(question);
-        }
-      };
-      input.addEventListener('keydown', handler);
     }
   } catch (e) {
     typing.remove();

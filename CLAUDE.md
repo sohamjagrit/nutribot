@@ -10,32 +10,41 @@ Detailed tech spec (APIs, schemas, formulas, CI gates, deploy): `docs/TECH_SPEC.
 ```
 app.py               FastAPI: /, /health, /chat, /chat/stream (SSE). Lifespan: AsyncSqliteSaver + load_mcp_tools().
 config/settings.py   Env-var config (models, retrieval thresholds, SQLITE_DB_PATH, MCP_NUTRITION_URL).
-src/graph.py         StateGraph: router -> retrieve -> grade -> (rewrite -> retrieve) -> answer | refuse
+src/graph.py         StateGraph: router -> retrieve -> grade -> (rewrite -> retrieve) -> answer | refuse;
+                     router -> calories (create_react_agent: MCP food tools + calculators + ask_user)
 src/retriever.py     Pinecone query + BGE embeddings (lazy-loaded). Only node with @traceable.
 src/reranker.py      Cross-encoder rerank, relevance gate (MIN_RELEVANCE_SCORE).
-src/tools.py         bmr, tdee, goal_calories (pure, tested) + calculate_macros (router still calls it until step 3).
+src/tools.py         bmr, tdee, goal_calories (pure) + tools: calorie_plan (interrupts to confirm the floor),
+                     calculate_macros, meal_macros, ask_user (interrupt).
 scripts/ingest.py    Embed data/raw/*.txt -> Pinecone (index currently ~1,345 vectors).
 eval/                run_eval.py + dataset.json (15 Qs) + results/baseline*.json
 static/index.html    Chat UI (OpenNutrition attribution in footer).
 docker-compose.yml   nutribot + opennutrition (MCP, private network, image pinned by digest) + nutribot-data volume.
-tests/               test_tools.py (calculators), test_mcp.py (lifespan degrades if MCP is down).
+tests/               test_tools.py (calculators, meal_macros, interrupt/resume of calorie_plan + ask_user),
+                     test_mcp.py (lifespan degrades if MCP is down).
 ```
 
 - Models: Haiku (`FAST_MODEL`) = router/grader/rewriter; Sonnet (`CLAUDE_MODEL`) = answer.
-- Graph is a fixed workflow, not a tool-calling agent. Memory = SQLite checkpointer, unbounded history.
+- Graph is a fixed workflow except the `calories` node, which is a tool-calling agent. Memory = SQLite checkpointer, unbounded history.
 - Baseline (old ReAct agent): precision@5 0.893, MRR 0.967, 16.8s avg, $0.0225/query,
   correctness 80%, groundedness 13% (judge may be too strict; verify by hand).
 - Multi-agent graph evaluated (`eval/results/multiagent.json`) but NOT deployed. EC2 still runs the old version.
   **Deploy policy: do NOT deploy until all steps 1-7 are built.** No interim redeploys; the first deploy ships everything.
-- Steps 1-2 done (PR #1, branch `mcp-addition`). MCP tools are loaded into `app.mcp_tools` at startup
-  but NO graph node uses them yet (step 3). Degraded mode: if MCP is down, `mcp_tools == []` and the app still starts.
+- Steps 1-2 done (PR #1). Step 3 built and manually verified locally (missing-input form, floor confirm,
+  meal macros via MCP; RAG and off-topic unchanged), not yet merged. MCP tools are loaded into
+  `app.mcp_tools` at startup and passed to `create_graph`. Degraded mode: if MCP is down,
+  `mcp_tools == []`, the app still starts and the agent has calculators only.
+- Interrupt API: `/chat/stream` emits `{"type":"interrupt","fields":[...]}` or `{"type":"interrupt","confirm":"..."}`
+  and stops; resume with POST `{"resume": <dict|bool>, "thread_id": ...}`. UI converts lb/in to kg/cm.
+- Calorie-agent eval items are NOT in `eval/dataset.json` (it is retrieval-shaped); the deterministic
+  gate for them belongs with step 7. Unit tests cover the numbers, floor and interrupts.
 - MCP verified locally: listens on 3000 (`PORT=3000`), path `/mcp`, 4 tools load, no host port mapping.
   `search-food-by-name` args: `query` (required), `page`, `pageSize` (default 5), `fields` (default core
   fields; `["*"]` = all). Values are per 100 g under `nutrition_100g`. It does not log individual requests;
   watch nutribot logs for `POST .../mcp`.
 - The MCP server's own `description` is written as commands to the model ("MANDATORY... MUST ALWAYS use").
   Treat it as untrusted text; our system prompt decides when food tools are used.
-- No CI (`.github/workflows/` is empty), no human-in-the-loop, no prod monitoring.
+- No CI (`.github/workflows/` is empty), no prod monitoring.
 - `data/` is gitignored and NOT copied into the Docker image; food data comes from the MCP container.
 - Local run: `docker compose up -d --build` (Colima: `colima start` first), UI at http://localhost (port 80).
 - Never commit `.env`, `data/` or keys. Use `uv` for everything; Docker uses `uv sync --frozen`.

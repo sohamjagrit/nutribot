@@ -1,6 +1,19 @@
-import pytest
+from typing import TypedDict
 
-from src.tools import bmr, calculate_macros, goal_calories, tdee
+import pytest
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph.graph import END, START, StateGraph
+from langgraph.types import Command
+
+from src.tools import (
+    ask_user,
+    bmr,
+    calculate_macros,
+    calorie_plan,
+    goal_calories,
+    meal_macros,
+    tdee,
+)
 
 
 def test_bmr_male_and_female():
@@ -61,3 +74,62 @@ def test_macros_custom_split():
         {"calories": 1800, "protein_pct": 40, "carbs_pct": 40, "fat_pct": 20}
     )
     assert "Protein: 180g" in out and "Carbs: 180g" in out and "Fat: 40g" in out
+
+
+def test_meal_macros_scales_and_sums():
+    out = meal_macros.invoke({"items": [
+        {"name": "chicken", "grams": 200, "calories_100g": 151, "protein_100g": 30.5,
+         "carbs_100g": 0, "fat_100g": 3.2},
+        {"name": "rice", "grams": 150, "calories_100g": 130, "protein_100g": 2.7,
+         "carbs_100g": 28, "fat_100g": 0.3},
+    ]})
+    assert "chicken (200 g): 302 kcal, P 61.0 g, C 0.0 g, F 6.4 g" in out
+    assert "Total: 497 kcal, Protein 65.0 g, Carbs 42.0 g, Fat 6.9 g" in out
+
+
+class _S(TypedDict, total=False):
+    out: str
+
+
+def _run(tool, args, resumes):
+    """Run a tool inside a one-node graph; feed each resume value in turn."""
+    g = StateGraph(_S)
+    g.add_node("n", lambda s: {"out": tool.invoke(args)})
+    g.add_edge(START, "n")
+    g.add_edge("n", END)
+    graph = g.compile(checkpointer=MemorySaver())
+    cfg = {"configurable": {"thread_id": "t"}}
+    result = graph.invoke({}, cfg)
+    interrupts = []
+    for r in resumes:
+        interrupts.append(result["__interrupt__"][0].value)
+        result = graph.invoke(Command(resume=r), cfg)
+    return result, interrupts
+
+
+PLAN = {"weight_kg": 80, "height_cm": 180, "age": 30, "sex": "male", "activity": "moderate"}
+
+
+def test_calorie_plan_no_interrupt_without_floor():
+    # BMR 1780, TDEE 2759, lose -> 2259
+    out = calorie_plan.invoke({**PLAN, "goal": "lose"})
+    assert out == "BMR 1780 kcal, TDEE 2759 kcal, lose target: 2259 kcal/day"
+
+
+def test_calorie_plan_floor_asks_confirmation():
+    small = {"weight_kg": 50, "height_cm": 160, "age": 40, "sex": "female", "activity": "sedentary"}
+    result, interrupts = _run(calorie_plan, {**small, "goal": "lose"}, [True])
+    assert "confirm" in interrupts[0] and "1200" in interrupts[0]["confirm"]
+    assert "lose target: 1200 kcal/day (raised to the safety floor" in result["out"]
+
+
+def test_calorie_plan_floor_declined():
+    small = {"weight_kg": 50, "height_cm": 160, "age": 40, "sex": "female", "activity": "sedentary"}
+    result, _ = _run(calorie_plan, {**small, "goal": "lose"}, [False])
+    assert "declined" in result["out"]
+
+
+def test_ask_user_interrupts_with_fields_and_returns_answers():
+    result, interrupts = _run(ask_user, {"fields": ["age", "sex"]}, [{"age": 30, "sex": "male"}])
+    assert interrupts == [{"fields": ["age", "sex"]}]
+    assert "'age': 30" in result["out"]

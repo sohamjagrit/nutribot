@@ -13,21 +13,23 @@ User → FastAPI → LangGraph pipeline
                       │
                    router (Haiku): classify + standalone query
         ┌─────────────┼───────────────┐
-    nutrition       macros         off_topic
+    nutrition       calories        off_topic
         │             │               │
-    retrieve          │             refuse
- Pinecone top-15      │
- + cross-encoder      │
- rerank top-5         │
-        │             │
-     grade (Haiku)    │
-     ┌───┴────┐       │
+    retrieve       ReAct agent        refuse
+ Pinecone top-15   (Sonnet) ──→ END
+ + cross-encoder
+ rerank top-5
+        │
+     grade (Haiku)
+     ┌───┴────┐
  supported  unsupported
      │        │ rewrite → retrieve (once) → refuse
-     └────────┴───────┴──→ answer (Sonnet) → END
+     └────────┴──→ answer (Sonnet) → END
 ```
 
-Each LLM node has one role. A fast model routes, grades and rewrites; the main model only writes the final answer, strictly from retrieved context, with inline `[Source n]` citations.
+A fast model routes, grades and rewrites; the main model writes the final answer, strictly from retrieved context, with inline `[Source n]` citations.
+
+The `calories` route is a ReAct agent for calorie targets, macro grams and the macros of specific meals. It decides when to use the OpenNutrition food lookup (MCP), the calculators (`calorie_plan`, `calculate_macros`, `meal_macros`; all math is deterministic Python) and `ask_user`. When details are missing it pauses via a LangGraph `interrupt`: `/chat/stream` emits `{"type":"interrupt","fields":[...]}` and the UI shows a form (kg/cm or lb/in). The client resumes by POSTing `{"resume": {...}, "thread_id": ...}`. A plan that hits the calorie floor (1500 male / 1200 female) asks for confirmation (`{"type":"interrupt","confirm":"..."}`, resume with `true`/`false`).
 
 **Two-stage retrieval** separates recall (Pinecone ANN search) from precision (cross-encoder reranking with a relevance gate).
 
@@ -58,10 +60,10 @@ nutribot/
 ├── app.py                  # FastAPI app: /chat and /chat/stream endpoints
 ├── config/settings.py      # Env-var config
 ├── src/
-│   ├── graph.py            # LangGraph pipeline (router → retrieve → grade → answer)
+│   ├── graph.py            # LangGraph pipeline (router → retrieve → grade → answer | calories agent)
 │   ├── retriever.py        # Pinecone query + BGE embedding
 │   ├── reranker.py         # Cross-encoder reranking
-│   └── tools.py            # Macro calculator
+│   └── tools.py            # Calorie/macro calculators + ask_user (interrupt)
 ├── scripts/ingest.py       # Chunk, embed, and upsert docs to Pinecone
 ├── eval/                   # Golden set + eval harness (retrieval and end-to-end metrics)
 ├── data/raw/               # Source documents (not committed)
