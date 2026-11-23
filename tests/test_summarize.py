@@ -46,7 +46,8 @@ def test_summarize_removes_old_keeps_last(monkeypatch):
 
 def test_cut_never_splits_tool_pair():
     msgs = [
-        HumanMessage("q0", id="h0"), AIMessage("a0", id="a0"),
+        HumanMessage("q0", id="h0"),
+        AIMessage("a0", id="a0"),
         HumanMessage("q1", id="h1"),
         AIMessage("", id="t1", tool_calls=[{"name": "x", "args": {}, "id": "c1"}]),
         ToolMessage("food data", tool_call_id="c1", id="r1"),

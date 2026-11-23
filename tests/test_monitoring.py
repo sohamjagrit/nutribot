@@ -24,10 +24,15 @@ def lines(caplog):
 
 
 def _llm_result(input_tokens, output_tokens, **details):
-    msg = AIMessage("x", usage_metadata={
-        "input_tokens": input_tokens, "output_tokens": output_tokens,
-        "total_tokens": input_tokens + output_tokens, "input_token_details": details,
-    })
+    msg = AIMessage(
+        "x",
+        usage_metadata={
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "total_tokens": input_tokens + output_tokens,
+            "input_token_details": details,
+        },
+    )
     return LLMResult(generations=[[ChatGeneration(message=msg)]])
 
 
@@ -41,11 +46,18 @@ def test_cost_counts_cache_reads_and_writes_at_their_rates():
 def test_usage_handler_tracks_tokens_cost_and_node_latency():
     mon = RequestMonitor("r1", "t1", "/chat")
     n, m = uuid.uuid4(), uuid.uuid4()
-    mon.callback.on_chain_start({}, {}, run_id=n, metadata={"langgraph_node": "router"}, name="router")
+    mon.callback.on_chain_start(
+        {}, {}, run_id=n, metadata={"langgraph_node": "router"}, name="router"
+    )
     mon.callback.on_chat_model_start({}, [], run_id=m, metadata={"ls_model_name": FAST_MODEL})
     mon.callback.on_llm_end(_llm_result(3000, 100, cache_read=2000, cache_creation=500), run_id=m)
     mon.callback.on_chain_end({}, run_id=n)
-    assert mon.usage.tokens == {"input": 3000, "output": 100, "cache_read": 2000, "cache_write": 500}
+    assert mon.usage.tokens == {
+        "input": 3000,
+        "output": 100,
+        "cache_read": 2000,
+        "cache_write": 500,
+    }
     assert abs(mon.usage.cost - cost_usd(FAST_MODEL, 500, 2000, 500, 100)) < 1e-12
     assert "router" in mon.usage.node_ms
 
@@ -56,7 +68,9 @@ def test_log_is_one_json_line_with_route_refusal_and_interrupt(lines):
     (line,) = lines()
     assert "\n" not in line and json.loads(line) == rec
     assert rec["refused"] and rec["grader_supported"] is False and rec["status"] == 200
-    assert not RequestMonitor("r", "t", "/chat").log({"route": "calories"}, interrupted=True)["refused"]
+    assert not RequestMonitor("r", "t", "/chat").log({"route": "calories"}, interrupted=True)[
+        "refused"
+    ]
     assert RequestMonitor("r", "t", "/chat").log({"route": "off_topic"})["refused"]
     err = RequestMonitor("r", "t", "/chat").log(status=500, error="ValueError")
     assert err["status"] == 500 and err["route"] is None and not err["refused"]

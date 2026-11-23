@@ -1,4 +1,5 @@
 import os
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -12,16 +13,24 @@ FAST_MODEL: str = os.getenv("FAST_MODEL", "claude-haiku-4-5-20251001")  # router
 MAX_RETRIEVAL_RETRIES: int = int(os.getenv("MAX_RETRIEVAL_RETRIES", "1"))
 
 # USD per 1M (input, output) tokens, used for cost in logs. Override when models or rates change.
-PRICING_MAIN: tuple[float, float] = (float(os.getenv("MAIN_PRICE_IN", "3")), float(os.getenv("MAIN_PRICE_OUT", "15")))
-PRICING_FAST: tuple[float, float] = (float(os.getenv("FAST_PRICE_IN", "1")), float(os.getenv("FAST_PRICE_OUT", "5")))
+PRICING_MAIN: tuple[float, float] = (
+    float(os.getenv("MAIN_PRICE_IN", "3")),
+    float(os.getenv("MAIN_PRICE_OUT", "15")),
+)
+PRICING_FAST: tuple[float, float] = (
+    float(os.getenv("FAST_PRICE_IN", "1")),
+    float(os.getenv("FAST_PRICE_OUT", "5")),
+)
 
 
 EMBED_MODEL: str = os.getenv("EMBED_MODEL", "BAAI/bge-base-en-v1.5")
 
 RERANKER_MODEL: str = os.getenv("RERANKER_MODEL", "cross-encoder/ms-marco-MiniLM-L-6-v2")
 RERANK_CANDIDATES: int = int(os.getenv("RERANK_CANDIDATES", "15"))  # fetched from Pinecone
-RERANK_TOP_K: int = int(os.getenv("RERANK_TOP_K", "5"))             # passed to LLM after rerank
-MIN_RELEVANCE_SCORE: float = float(os.getenv("MIN_RELEVANCE_SCORE", "-4.0"))  # ms-marco logit threshold
+RERANK_TOP_K: int = int(os.getenv("RERANK_TOP_K", "5"))  # passed to LLM after rerank
+MIN_RELEVANCE_SCORE: float = float(
+    os.getenv("MIN_RELEVANCE_SCORE", "-4.0")
+)  # ms-marco logit threshold
 
 # Context management: when history exceeds the token budget, older messages are folded into a summary.
 CONTEXT_TOKEN_BUDGET: int = int(os.getenv("CONTEXT_TOKEN_BUDGET", "6000"))

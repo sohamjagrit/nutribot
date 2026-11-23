@@ -6,6 +6,7 @@ import os
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
@@ -14,9 +15,17 @@ from langchain_core.messages import HumanMessage
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.types import Command
-from pydantic import BaseModel
-from config.settings import CLAUDE_MODEL, ENV, FAST_MODEL, GIT_SHA, MCP_NUTRITION_URL, SQLITE_DB_PATH
 from langsmith import Client
+from pydantic import BaseModel
+
+from config.settings import (
+    CLAUDE_MODEL,
+    ENV,
+    FAST_MODEL,
+    GIT_SHA,
+    MCP_NUTRITION_URL,
+    SQLITE_DB_PATH,
+)
 from src.graph import create_graph
 from src.monitoring import RequestMonitor
 
@@ -36,7 +45,9 @@ async def load_mcp_tools() -> list:
         logging.info("Loaded %d MCP tools: %s", len(tools), [t.name for t in tools])
         return tools
     except Exception:
-        logging.warning("MCP server unreachable at %s; food lookup disabled", MCP_NUTRITION_URL, exc_info=True)
+        logging.warning(
+            "MCP server unreachable at %s; food lookup disabled", MCP_NUTRITION_URL, exc_info=True
+        )
         return []
 
 
@@ -50,7 +61,9 @@ async def lifespan(app: FastAPI):
         yield
 
 
-app = FastAPI(title="NutriBot", description="Personalized RAG Chatbot for Nutrition Q&A", lifespan=lifespan)
+app = FastAPI(
+    title="NutriBot", description="Personalized RAG Chatbot for Nutrition Q&A", lifespan=lifespan
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -103,15 +116,19 @@ def _run_config(req: ChatRequest) -> dict:
         "run_id": uuid.uuid4(),
         "tags": [ENV, "nutribot"],
         "metadata": {
-            "thread_id": req.thread_id, "git_sha": GIT_SHA,
-            "claude_model": CLAUDE_MODEL, "fast_model": FAST_MODEL,
+            "thread_id": req.thread_id,
+            "git_sha": GIT_SHA,
+            "claude_model": CLAUDE_MODEL,
+            "fast_model": FAST_MODEL,
         },
         "configurable": {"thread_id": req.thread_id},
     }
 
 
 def _monitor(req: ChatRequest, config: dict, endpoint: str) -> RequestMonitor:
-    mon = RequestMonitor(str(config["run_id"]), req.thread_id, endpoint, resumed=req.resume is not None)
+    mon = RequestMonitor(
+        str(config["run_id"]), req.thread_id, endpoint, resumed=req.resume is not None
+    )
     config["callbacks"] = [mon.callback]
     return mon
 
@@ -140,8 +157,12 @@ async def chat(req: ChatRequest) -> ChatResponse:
     mon.log(result, interrupted="__interrupt__" in result)
     if "__interrupt__" in result:
         return ChatResponse(
-            question=req.question, answer="", sources=[], needs_clarification=True,
-            interrupt=result["__interrupt__"][0].value, run_id=str(config["run_id"]),
+            question=req.question,
+            answer="",
+            sources=[],
+            needs_clarification=True,
+            interrupt=result["__interrupt__"][0].value,
+            run_id=str(config["run_id"]),
         )
     answer = result["messages"][-1].content
     return ChatResponse(
@@ -194,7 +215,8 @@ async def chat_stream(req: ChatRequest):
                     content = event["data"]["chunk"].content
                     if isinstance(content, list):
                         content = "".join(
-                            b.get("text", "") for b in content
+                            b.get("text", "")
+                            for b in content
                             if isinstance(b, dict) and b.get("type") == "text"
                         )
                     if content:
@@ -231,4 +253,5 @@ async def chat_stream(req: ChatRequest):
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)

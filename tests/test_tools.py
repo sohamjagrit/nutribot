@@ -29,7 +29,13 @@ def test_bmr_rejects_bad_sex():
 
 @pytest.mark.parametrize(
     "activity,expected",
-    [("sedentary", 2400), ("light", 2750), ("moderate", 3100), ("active", 3450), ("very_active", 3800)],
+    [
+        ("sedentary", 2400),
+        ("light", 2750),
+        ("moderate", 3100),
+        ("active", 3450),
+        ("very_active", 3800),
+    ],
 )
 def test_tdee_factors(activity, expected):
     assert tdee(2000, activity) == expected
@@ -77,12 +83,28 @@ def test_macros_custom_split():
 
 
 def test_meal_macros_scales_and_sums():
-    out = meal_macros.invoke({"items": [
-        {"name": "chicken", "grams": 200, "calories_100g": 151, "protein_100g": 30.5,
-         "carbs_100g": 0, "fat_100g": 3.2},
-        {"name": "rice", "grams": 150, "calories_100g": 130, "protein_100g": 2.7,
-         "carbs_100g": 28, "fat_100g": 0.3},
-    ]})
+    out = meal_macros.invoke(
+        {
+            "items": [
+                {
+                    "name": "chicken",
+                    "grams": 200,
+                    "calories_100g": 151,
+                    "protein_100g": 30.5,
+                    "carbs_100g": 0,
+                    "fat_100g": 3.2,
+                },
+                {
+                    "name": "rice",
+                    "grams": 150,
+                    "calories_100g": 130,
+                    "protein_100g": 2.7,
+                    "carbs_100g": 28,
+                    "fat_100g": 0.3,
+                },
+            ]
+        }
+    )
     assert "chicken (200 g): 302 kcal, P 61.0 g, C 0.0 g, F 6.4 g" in out
     assert "Total: 497 kcal, Protein 65.0 g, Carbs 42.0 g, Fat 6.9 g" in out
 
