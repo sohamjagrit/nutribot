@@ -7,6 +7,14 @@ IMAGE="${1:?image ref}"
 REGION="${AWS_REGION:-us-east-1}"
 cd /opt/nutribot
 
+# First deploy on a fresh host: install the Compose v2 plugin if Docker lacks it.
+if ! docker compose version >/dev/null 2>&1; then
+  mkdir -p /usr/local/lib/docker/cli-plugins
+  curl -fsSL "https://github.com/docker/compose/releases/download/v2.32.4/docker-compose-linux-$(uname -m)" \
+    -o /usr/local/lib/docker/cli-plugins/docker-compose
+  chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+fi
+
 # .env is the single source of runtime config: a raw dotenv stored in Secrets Manager (one-time setup).
 aws secretsmanager get-secret-value --region "$REGION" --secret-id nutribot/dotenv \
   --query SecretString --output text > .env
