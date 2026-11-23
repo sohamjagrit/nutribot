@@ -30,6 +30,6 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: uv run python eval/run_eval.py run --tag ci_e2e
       # Baseline = the multi-agent graph run (eval/results/multiagent.json); update it only in a deliberate PR.
-      # 15 questions is noisy (one = 6.7%), hence the 0.10 tolerance.
+      # 15 questions is noisy (one = 6.7%), hence 0.10 (correctness) and 0.15 (groundedness, noisier judge) tolerances; tighten at 30+ questions.
       - name: Gate vs committed baseline
         run: uv run python eval/run_eval.py gate e2e eval/results/multiagent.json eval/results/ci_e2e.json

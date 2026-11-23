@@ -320,7 +320,7 @@ def cmd_gate(args):
             ("retrieval.mrr", 0.05, None),
             ("retrieval.hit_at_k", None, 0.9),
         ],
-        "e2e": [("e2e.answer_correctness_rate", 0.10, None), ("e2e.groundedness_rate", 0.10, None)],
+        "e2e": [("e2e.answer_correctness_rate", 0.10, None), ("e2e.groundedness_rate", 0.15, None)],
     }[args.kind]
     failed = False
     for key, drop, floor in rules:
