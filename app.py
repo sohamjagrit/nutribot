@@ -18,6 +18,7 @@ from pydantic import BaseModel
 from config.settings import CLAUDE_MODEL, ENV, FAST_MODEL, GIT_SHA, MCP_NUTRITION_URL, SQLITE_DB_PATH
 from langsmith import Client
 from src.graph import create_graph
+from src.monitoring import RequestMonitor
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 
@@ -109,6 +110,12 @@ def _run_config(req: ChatRequest) -> dict:
     }
 
 
+def _monitor(req: ChatRequest, config: dict, endpoint: str) -> RequestMonitor:
+    mon = RequestMonitor(str(config["run_id"]), req.thread_id, endpoint, resumed=req.resume is not None)
+    config["callbacks"] = [mon.callback]
+    return mon
+
+
 @app.get("/", include_in_schema=False)
 async def root():
     return FileResponse(Path(__file__).parent / "static" / "index.html")
@@ -124,7 +131,13 @@ async def chat(req: ChatRequest) -> ChatResponse:
     if req.resume is None and not req.question.strip():
         raise HTTPException(status_code=400, detail="Question cannot be empty")
     config = _run_config(req)
-    result = await graph.ainvoke(_graph_input(req), config=config)
+    mon = _monitor(req, config, "/chat")
+    try:
+        result = await graph.ainvoke(_graph_input(req), config=config)
+    except Exception as e:
+        mon.log(status=500, error=type(e).__name__)
+        raise
+    mon.log(result, interrupted="__interrupt__" in result)
     if "__interrupt__" in result:
         return ChatResponse(
             question=req.question, answer="", sources=[], needs_clarification=True,
@@ -153,6 +166,7 @@ async def chat_stream(req: ChatRequest):
         raise HTTPException(status_code=400, detail="Question cannot be empty")
 
     config = _run_config(req)
+    mon = _monitor(req, config, "/chat/stream")
 
     async def event_stream():
         meta: dict = {"sources": [], "needs_clarification": False, "run_id": str(config["run_id"])}
@@ -195,14 +209,17 @@ async def chat_stream(req: ChatRequest):
             final = await graph.aget_state(config)
             pending = [i.value for t in final.tasks for i in t.interrupts]
             if pending:
+                mon.log(final.values, interrupted=True)
                 yield f"data: {json.dumps({'type': 'interrupt', **pending[0]})}\n\n"
                 return
             if final.values.get("route") == "nutrition" and final.values.get("supported"):
                 meta["sources"] = final.values["docs"]
 
+            mon.log(final.values)
             yield f"data: {json.dumps({'type': 'done', **meta})}\n\n"
-        except Exception:
+        except Exception as e:
             logging.exception("Streaming error")
+            mon.log(status=500, error=type(e).__name__)
             yield f"data: {json.dumps({'type': 'error', 'message': 'Internal server error'})}\n\n"
 
     return StreamingResponse(
