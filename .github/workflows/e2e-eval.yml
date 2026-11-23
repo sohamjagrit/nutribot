@@ -1,0 +1,35 @@
+name: e2e-eval
+# Full LLM eval (about $0.20 per run). Runs only when behavior can change, nightly, or by hand.
+on:
+  pull_request:
+    paths: ["src/**", "config/**", "eval/**", "app.py"]
+  schedule:
+    - cron: "0 7 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-bge-minilm-v1
+      - run: uv sync --frozen
+      - name: Full eval with judge
+        env:
+          PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: uv run python eval/run_eval.py run --tag ci_e2e
+      # Baseline = the multi-agent graph run (eval/results/multiagent.json); update it only in a deliberate PR.
+      # 15 questions is noisy (one = 6.7%), hence the 0.10 tolerance.
+      - name: Gate vs committed baseline
+        run: uv run python eval/run_eval.py gate e2e eval/results/multiagent.json eval/results/ci_e2e.json

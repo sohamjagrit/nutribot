@@ -52,9 +52,7 @@ def _text(msg) -> str:
     if isinstance(content, str):
         return content
     if isinstance(content, list):
-        return " ".join(
-            b.get("text", "") if isinstance(b, dict) else str(b) for b in content
-        )
+        return " ".join(b.get("text", "") if isinstance(b, dict) else str(b) for b in content)
     return str(content)
 
 
@@ -73,8 +71,8 @@ def _is_relevant(doc: str, keywords: list[str]) -> bool:
 
 def eval_retrieval(items: list[dict]) -> dict:
     from config.settings import RERANK_CANDIDATES
-    from src.retriever import retrieve
     from src.reranker import rerank
+    from src.retriever import retrieve
 
     per_q = []
     for it in items:
@@ -93,14 +91,16 @@ def eval_retrieval(items: list[dict]) -> dict:
                 mrr = 1.0 / rank
                 break
 
-        per_q.append({
-            "id": it["id"],
-            "precision_at_k": round(precision_at_k, 3),
-            "hit_at_k": hit,
-            "recall_in_pool": recall_pool,
-            "mrr": round(mrr, 3),
-            "n_reranked": len(reranked),
-        })
+        per_q.append(
+            {
+                "id": it["id"],
+                "precision_at_k": round(precision_at_k, 3),
+                "hit_at_k": hit,
+                "recall_in_pool": recall_pool,
+                "mrr": round(mrr, 3),
+                "n_reranked": len(reranked),
+            }
+        )
 
     def avg(field):
         return round(statistics.mean(q[field] for q in per_q), 3)
@@ -121,7 +121,9 @@ def eval_retrieval(items: list[dict]) -> dict:
 # ----------------------------------------------------------------------------
 def _build_agent():
     from langgraph.checkpoint.memory import MemorySaver
+
     from src.graph import create_graph
+
     return create_graph(MemorySaver())
 
 
@@ -166,7 +168,9 @@ def eval_e2e(items: list[dict], use_judge: bool) -> dict:
     judge_llm = None
     if use_judge:
         from langchain_anthropic import ChatAnthropic
+
         from config.settings import ANTHROPIC_API_KEY
+
         judge_llm = ChatAnthropic(api_key=ANTHROPIC_API_KEY, model=JUDGE_MODEL, temperature=0)
 
     in_rate, out_rate = _price_for(CLAUDE_MODEL)
@@ -178,28 +182,36 @@ def eval_e2e(items: list[dict], use_judge: bool) -> dict:
         grounded = correct = None
         if use_judge and run["answer"]:
             sources_block = "\n\n".join(run["sources"]) or "(no sources retrieved)"
-            grounded = _judge(judge_llm, (
-                "You are grading a nutrition assistant for GROUNDEDNESS.\n"
-                "Answer YES if every factual claim in the ANSWER is supported by the SOURCES, "
-                "otherwise NO. Reply with YES or NO first.\n\n"
-                f"SOURCES:\n{sources_block}\n\nANSWER:\n{run['answer']}"
-            ))
-            correct = _judge(judge_llm, (
-                "You are grading a nutrition answer for CORRECTNESS against a reference.\n"
-                "Answer YES if the ANSWER captures the key facts of the REFERENCE, otherwise NO. "
-                "Reply with YES or NO first.\n\n"
-                f"REFERENCE:\n{it['expected_answer']}\n\nANSWER:\n{run['answer']}"
-            ))
+            grounded = _judge(
+                judge_llm,
+                (
+                    "You are grading a nutrition assistant for GROUNDEDNESS.\n"
+                    "Answer YES if every factual claim in the ANSWER is supported by the SOURCES, "
+                    "otherwise NO. Reply with YES or NO first.\n\n"
+                    f"SOURCES:\n{sources_block}\n\nANSWER:\n{run['answer']}"
+                ),
+            )
+            correct = _judge(
+                judge_llm,
+                (
+                    "You are grading a nutrition answer for CORRECTNESS against a reference.\n"
+                    "Answer YES if the ANSWER captures the key facts of the REFERENCE, otherwise NO. "
+                    "Reply with YES or NO first.\n\n"
+                    f"REFERENCE:\n{it['expected_answer']}\n\nANSWER:\n{run['answer']}"
+                ),
+            )
 
-        per_q.append({
-            "id": it["id"],
-            "latency_s": round(run["latency_s"], 3),
-            "input_tokens": run["input_tokens"],
-            "output_tokens": run["output_tokens"],
-            "cost_usd": round(cost, 6),
-            "grounded": grounded,
-            "correct": correct,
-        })
+        per_q.append(
+            {
+                "id": it["id"],
+                "latency_s": round(run["latency_s"], 3),
+                "input_tokens": run["input_tokens"],
+                "output_tokens": run["output_tokens"],
+                "cost_usd": round(cost, 6),
+                "grounded": grounded,
+                "correct": correct,
+            }
+        )
 
     n = len(per_q)
     latencies = sorted(q["latency_s"] for q in per_q)
@@ -214,9 +226,15 @@ def eval_e2e(items: list[dict], use_judge: bool) -> dict:
     if use_judge:
         grounded_vals = [q["grounded"] for q in per_q if q["grounded"] is not None]
         correct_vals = [q["correct"] for q in per_q if q["correct"] is not None]
-        agg["groundedness_rate"] = round(sum(grounded_vals) / len(grounded_vals), 3) if grounded_vals else None
-        agg["hallucination_rate"] = round(1 - agg["groundedness_rate"], 3) if grounded_vals else None
-        agg["answer_correctness_rate"] = round(sum(correct_vals) / len(correct_vals), 3) if correct_vals else None
+        agg["groundedness_rate"] = (
+            round(sum(grounded_vals) / len(grounded_vals), 3) if grounded_vals else None
+        )
+        agg["hallucination_rate"] = (
+            round(1 - agg["groundedness_rate"], 3) if grounded_vals else None
+        )
+        agg["answer_correctness_rate"] = (
+            round(sum(correct_vals) / len(correct_vals), 3) if correct_vals else None
+        )
 
     return {"aggregate": agg, "per_question": per_q}
 
@@ -233,13 +251,23 @@ def _print_aggregate(title: str, agg: dict):
 
 def cmd_run(args):
     items = load_dataset()
-    from config.settings import CLAUDE_MODEL, EMBED_MODEL, RERANKER_MODEL, RERANK_TOP_K
-    print(f"Dataset: {len(items)} questions")
-    print(f"Embed={EMBED_MODEL} | Reranker={RERANKER_MODEL} | top_k={RERANK_TOP_K} | LLM={CLAUDE_MODEL}")
+    from config.settings import CLAUDE_MODEL, EMBED_MODEL, RERANK_TOP_K, RERANKER_MODEL
 
-    result = {"tag": args.tag, "n_questions": len(items),
-              "config": {"embed_model": EMBED_MODEL, "reranker": RERANKER_MODEL,
-                         "rerank_top_k": RERANK_TOP_K, "llm": CLAUDE_MODEL}}
+    print(f"Dataset: {len(items)} questions")
+    print(
+        f"Embed={EMBED_MODEL} | Reranker={RERANKER_MODEL} | top_k={RERANK_TOP_K} | LLM={CLAUDE_MODEL}"
+    )
+
+    result = {
+        "tag": args.tag,
+        "n_questions": len(items),
+        "config": {
+            "embed_model": EMBED_MODEL,
+            "reranker": RERANKER_MODEL,
+            "rerank_top_k": RERANK_TOP_K,
+            "llm": CLAUDE_MODEL,
+        },
+    }
 
     print("\n[1/2] Retrieval metrics (no API cost)...")
     result["retrieval"] = eval_retrieval(items)
@@ -281,6 +309,33 @@ def cmd_compare(args):
             print(f"  {key:<34}{str(va):>12}{str(vb):>12}")
 
 
+def cmd_gate(args):
+    """Exit 1 if the candidate regressed vs the committed baseline (CI gate)."""
+    fa = _flatten(json.loads(Path(args.baseline).read_text()))
+    fb = _flatten(json.loads(Path(args.candidate).read_text()))
+    # (metric, max allowed drop vs baseline, absolute floor or None)
+    rules = {
+        "retrieval": [
+            ("retrieval.precision_at_k", 0.05, None),
+            ("retrieval.mrr", 0.05, None),
+            ("retrieval.hit_at_k", None, 0.9),
+        ],
+        "e2e": [("e2e.answer_correctness_rate", 0.10, None), ("e2e.groundedness_rate", 0.10, None)],
+    }[args.kind]
+    failed = False
+    for key, drop, floor in rules:
+        base, cand = fa.get(key), fb.get(key)
+        if cand is None or (drop is not None and base is None):
+            print(f"FAIL {key}: missing")
+            failed = True
+            continue
+        ok = cand >= base - drop if drop is not None else cand >= floor
+        limit = f"{base - drop:.3f}" if drop is not None else f"{floor:.3f}"
+        print(f"{'ok  ' if ok else 'FAIL'} {key}: {cand:.3f} (baseline {base}, min {limit})")
+        failed |= not ok
+    sys.exit(1 if failed else 0)
+
+
 def main():
     p = argparse.ArgumentParser(description="NutriBot eval harness")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -295,6 +350,12 @@ def main():
     c.add_argument("baseline")
     c.add_argument("candidate")
     c.set_defaults(func=cmd_compare)
+
+    g = sub.add_parser("gate", help="exit 1 if candidate regressed vs baseline (CI)")
+    g.add_argument("kind", choices=["retrieval", "e2e"])
+    g.add_argument("baseline")
+    g.add_argument("candidate")
+    g.set_defaults(func=cmd_gate)
 
     args = p.parse_args()
     args.func(args)
