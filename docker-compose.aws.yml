@@ -1,0 +1,11 @@
+# EC2 override: ship nutribot stdout (one JSON line per request) to CloudWatch Logs.
+# Use: docker compose -f docker-compose.yml -f docker-compose.aws.yml up -d
+# Needs an instance role with logs:CreateLogGroup/CreateLogStream/PutLogEvents.
+services:
+  nutribot:
+    logging:
+      driver: awslogs
+      options:
+        awslogs-region: ${AWS_REGION:-us-east-1}
+        awslogs-group: nutribot
+        awslogs-create-group: "true"

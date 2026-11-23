@@ -153,11 +153,26 @@ uv run python eval/run_eval.py compare eval/results/baseline.json eval/results/m
 # On the instance (Docker + compose plugin installed, security group open on port 80)
 git clone https://github.com/sohamjagrit/NutriBot && cd NutriBot
 cp .env.example .env   # fill in PINECONE_API_KEY and ANTHROPIC_API_KEY
-docker compose up -d --build
+docker compose -f docker-compose.yml -f docker-compose.aws.yml up -d --build   # aws file = CloudWatch logs
 docker compose logs nutribot | grep "MCP tools"   # confirm food tools loaded
 ```
 
 The `nutribot-data` volume keeps SQLite conversation memory across container restarts.
+
+### Monitoring
+
+Every request writes one JSON line to stdout (`src/monitoring.py`): `request_id` (= LangSmith run id),
+`route`, `status`, `latency_ms`, per-node `node_ms`, `tokens` (input/output/cache_read/cache_write),
+`cost_usd`, `grader_supported`, `refused`, `interrupted`. The `awslogs` override ships it to the
+CloudWatch log group `nutribot` (the instance role needs `logs:CreateLogGroup/CreateLogStream/PutLogEvents`).
+Create the metric filters and alarms (5xx, p95 latency, daily cost, refusal rate -> SNS email) once:
+
+```bash
+AWS_REGION=us-east-1 ALERT_EMAIL=you@example.com deploy/cloudwatch.sh   # thresholds overridable via env
+```
+
+Prompt caching is on for the calorie agent (tools + static system prompt); the log's `cache_read` /
+`cache_write` show whether it hits. Cost uses `*_PRICE_*` in `.env`.
 
 ---
 
