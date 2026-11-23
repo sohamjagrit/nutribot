@@ -11,6 +11,10 @@ CLAUDE_MODEL: str = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-6")
 FAST_MODEL: str = os.getenv("FAST_MODEL", "claude-haiku-4-5-20251001")  # router, grader, rewriter
 MAX_RETRIEVAL_RETRIES: int = int(os.getenv("MAX_RETRIEVAL_RETRIES", "1"))
 
+# USD per 1M (input, output) tokens, used for cost in logs. Override when models or rates change.
+PRICING_MAIN: tuple[float, float] = (float(os.getenv("MAIN_PRICE_IN", "3")), float(os.getenv("MAIN_PRICE_OUT", "15")))
+PRICING_FAST: tuple[float, float] = (float(os.getenv("FAST_PRICE_IN", "1")), float(os.getenv("FAST_PRICE_OUT", "5")))
+
 
 EMBED_MODEL: str = os.getenv("EMBED_MODEL", "BAAI/bge-base-en-v1.5")
 

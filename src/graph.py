@@ -121,7 +121,12 @@ def _summary_block(state) -> str:
 
 
 def _calorie_prompt(state: CalorieState) -> list[BaseMessage]:
-    return [SystemMessage(_summary_block(state) + _CALORIE_SYSTEM), *state["messages"]]
+    # Prompt caching: the breakpoint caches tools + static system prompt (they come first in the request),
+    # reused on every ReAct step and every turn. The per-thread summary follows, uncached.
+    blocks = [{"type": "text", "text": _CALORIE_SYSTEM, "cache_control": {"type": "ephemeral"}}]
+    if state.get("summary"):
+        blocks.append({"type": "text", "text": _summary_block(state)})
+    return [SystemMessage(blocks), *state["messages"]]
 
 
 def _cut_index(messages: list[BaseMessage], keep: int) -> int:
