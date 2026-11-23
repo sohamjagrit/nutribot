@@ -27,7 +27,9 @@ if not _log.handlers:  # raw JSON only (no logging prefix) so CloudWatch can par
 def cost_usd(model: str, uncached: int, cache_read: int, cache_write: int, output: int) -> float:
     """Anthropic pricing: cache reads 0.1x input, 5-minute cache writes 1.25x input. USD per 1M tokens."""
     inp, out = PRICING_FAST if model == FAST_MODEL else PRICING_MAIN
-    return (uncached * inp + cache_read * inp * 0.1 + cache_write * inp * 1.25 + output * out) / 1_000_000
+    return (
+        uncached * inp + cache_read * inp * 0.1 + cache_write * inp * 1.25 + output * out
+    ) / 1_000_000
 
 
 class _Usage(BaseCallbackHandler):
@@ -76,24 +78,44 @@ class _Usage(BaseCallbackHandler):
 
 class RequestMonitor:
     def __init__(self, request_id: str, thread_id: str, endpoint: str, resumed: bool = False):
-        self.request_id, self.thread_id, self.endpoint, self.resumed = request_id, thread_id, endpoint, resumed
+        self.request_id, self.thread_id, self.endpoint, self.resumed = (
+            request_id,
+            thread_id,
+            endpoint,
+            resumed,
+        )
         self.usage = _Usage()
         self.callback = self.usage
         self._t0 = time.perf_counter()
 
-    def log(self, state: dict | None = None, interrupted: bool = False, status: int = 200, error: str | None = None):
+    def log(
+        self,
+        state: dict | None = None,
+        interrupted: bool = False,
+        status: int = 200,
+        error: str | None = None,
+    ):
         s = state or {}
         route = s.get("route")
         refused = route == "off_topic" or (route == "nutrition" and not s.get("supported"))
         rec = {
             "ts": datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
-            "request_id": self.request_id, "thread_id": self.thread_id, "endpoint": self.endpoint,
-            "env": ENV, "git_sha": GIT_SHA, "status": status, "error": error,
-            "route": route, "grader_supported": s.get("supported") if route == "nutrition" else None,
-            "retries": s.get("retries"), "refused": refused and not interrupted,
-            "interrupted": interrupted, "resumed": self.resumed,
+            "request_id": self.request_id,
+            "thread_id": self.thread_id,
+            "endpoint": self.endpoint,
+            "env": ENV,
+            "git_sha": GIT_SHA,
+            "status": status,
+            "error": error,
+            "route": route,
+            "grader_supported": s.get("supported") if route == "nutrition" else None,
+            "retries": s.get("retries"),
+            "refused": refused and not interrupted,
+            "interrupted": interrupted,
+            "resumed": self.resumed,
             "latency_ms": round((time.perf_counter() - self._t0) * 1000),
-            "node_ms": dict(self.usage.node_ms), "tokens": self.usage.tokens,
+            "node_ms": dict(self.usage.node_ms),
+            "tokens": self.usage.tokens,
             "cost_usd": round(self.usage.cost, 6),
         }
         _log.info(json.dumps(rec))

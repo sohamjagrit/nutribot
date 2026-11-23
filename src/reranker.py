@@ -1,9 +1,11 @@
 """Cross-encoder reranker — scores query-doc pairs and returns top-k by relevance."""
 
 import logging
+
 from langsmith import traceable
 from sentence_transformers import CrossEncoder
-from config.settings import RERANKER_MODEL, RERANK_TOP_K, MIN_RELEVANCE_SCORE
+
+from config.settings import MIN_RELEVANCE_SCORE, RERANK_TOP_K, RERANKER_MODEL
 
 logger = logging.getLogger(__name__)
 
@@ -32,5 +34,7 @@ def rerank(query: str, docs: list[str], top_k: int = RERANK_TOP_K) -> tuple[list
     ranked = sorted(zip(scores, docs), reverse=True)[:top_k]
     best_score = float(ranked[0][0])
 
-    logger.info(f"Reranked {len(docs)} → {len(ranked)} docs | best score: {best_score:.2f} | threshold: {MIN_RELEVANCE_SCORE}")
+    logger.info(
+        f"Reranked {len(docs)} → {len(ranked)} docs | best score: {best_score:.2f} | threshold: {MIN_RELEVANCE_SCORE}"
+    )
     return [doc for _, doc in ranked], best_score

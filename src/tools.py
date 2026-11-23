@@ -82,10 +82,14 @@ def meal_macros(items: list[MealItem]) -> str:
         row = (i.calories_100g * f, i.protein_100g * f, i.carbs_100g * f, i.fat_100g * f)
         for k, v in zip(total, row):
             total[k] += v
-        lines.append(f"{i.name} ({i.grams:g} g): {row[0]:.0f} kcal, P {row[1]:.1f} g, "
-                     f"C {row[2]:.1f} g, F {row[3]:.1f} g")
-    lines.append(f"Total: {total['kcal']:.0f} kcal, Protein {total['protein']:.1f} g, "
-                 f"Carbs {total['carbs']:.1f} g, Fat {total['fat']:.1f} g")
+        lines.append(
+            f"{i.name} ({i.grams:g} g): {row[0]:.0f} kcal, P {row[1]:.1f} g, "
+            f"C {row[2]:.1f} g, F {row[3]:.1f} g"
+        )
+    lines.append(
+        f"Total: {total['kcal']:.0f} kcal, Protein {total['protein']:.1f} g, "
+        f"Carbs {total['carbs']:.1f} g, Fat {total['fat']:.1f} g"
+    )
     return "\n".join(lines)
 
 
@@ -100,8 +104,12 @@ def calorie_plan(
     t = tdee(b, activity)
     kcal, floored = goal_calories(t, goal, sex)
     if floored:
-        ok = interrupt({"confirm": f"Your goal would go below the safe minimum, so the target "
-                                   f"is raised to {kcal} kcal/day. Continue with {kcal} kcal?"})
+        ok = interrupt(
+            {
+                "confirm": f"Your goal would go below the safe minimum, so the target "
+                f"is raised to {kcal} kcal/day. Continue with {kcal} kcal?"
+            }
+        )
         if not ok:
             return f"User declined the floor-adjusted target of {kcal} kcal/day. No plan made."
     note = " (raised to the safety floor; user confirmed)" if floored else ""

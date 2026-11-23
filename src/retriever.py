@@ -1,10 +1,12 @@
 """Pinecone retriever — swap this module to change retrieval strategy."""
 
 import logging
-from sentence_transformers import SentenceTransformer
-from pinecone import Pinecone
+
 from langsmith import traceable
-from config.settings import PINECONE_API_KEY, PINECONE_INDEX, EMBED_MODEL, RERANK_CANDIDATES
+from pinecone import Pinecone
+from sentence_transformers import SentenceTransformer
+
+from config.settings import EMBED_MODEL, PINECONE_API_KEY, PINECONE_INDEX, RERANK_CANDIDATES
 
 logger = logging.getLogger(__name__)
 

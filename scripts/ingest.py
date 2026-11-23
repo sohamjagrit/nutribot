@@ -16,9 +16,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from sentence_transformers import SentenceTransformer
 from pinecone import Pinecone
-from config.settings import PINECONE_API_KEY, PINECONE_INDEX, EMBED_MODEL
+from sentence_transformers import SentenceTransformer
+
+from config.settings import EMBED_MODEL, PINECONE_API_KEY, PINECONE_INDEX
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)

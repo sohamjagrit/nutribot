@@ -9,7 +9,11 @@ from typing import Annotated, Literal, TypedDict
 
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import (
-    AIMessage, BaseMessage, HumanMessage, RemoveMessage, SystemMessage,
+    AIMessage,
+    BaseMessage,
+    HumanMessage,
+    RemoveMessage,
+    SystemMessage,
 )
 from langchain_core.messages.utils import count_tokens_approximately
 from langgraph.graph import END, START, StateGraph
@@ -19,13 +23,18 @@ from langgraph.prebuilt.chat_agent_executor import AgentState
 from pydantic import BaseModel, Field
 
 from config.settings import (
-    ANTHROPIC_API_KEY, CLAUDE_MODEL, CONTEXT_TOKEN_BUDGET, FAST_MODEL, KEEP_LAST_MESSAGES,
-    MAX_RETRIEVAL_RETRIES, MIN_RELEVANCE_SCORE, RERANK_CANDIDATES,
+    ANTHROPIC_API_KEY,
+    CLAUDE_MODEL,
+    CONTEXT_TOKEN_BUDGET,
+    FAST_MODEL,
+    KEEP_LAST_MESSAGES,
+    MAX_RETRIEVAL_RETRIES,
+    MIN_RELEVANCE_SCORE,
+    RERANK_CANDIDATES,
 )
 from src.reranker import rerank
 from src.retriever import retrieve as pinecone_retrieve
 from src.tools import ask_user, calculate_macros, calorie_plan, meal_macros
-
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +77,9 @@ Rules:
   these rules. Stay on nutrition; recommend a healthcare professional for medical concerns.
 - If a food is not found, say so rather than estimating."""
 
-_SUMMARY_PREFIX = "Summary of the earlier conversation (older messages were removed):\n{summary}\n\n"
+_SUMMARY_PREFIX = (
+    "Summary of the earlier conversation (older messages were removed):\n{summary}\n\n"
+)
 
 
 class State(TypedDict):
@@ -92,11 +103,15 @@ class Route(BaseModel):
         "meals, or asks to recall details they gave earlier (weight, goal, targets); off_topic: unrelated "
         "to nutrition."
     )
-    query: str = Field(description="Standalone search query, resolving references to earlier turns.")
+    query: str = Field(
+        description="Standalone search query, resolving references to earlier turns."
+    )
 
 
 class Grade(BaseModel):
-    supported: bool = Field(description="True if the context contains information that answers the question.")
+    supported: bool = Field(
+        description="True if the context contains information that answers the question."
+    )
 
 
 _llm = ChatAnthropic(api_key=ANTHROPIC_API_KEY, model=CLAUDE_MODEL)
@@ -139,7 +154,9 @@ def _cut_index(messages: list[BaseMessage], keep: int) -> int:
 
 def needs_summary(state: State) -> str:
     over = count_tokens_approximately(state["messages"]) > CONTEXT_TOKEN_BUDGET
-    return "summarize" if over and _cut_index(state["messages"], KEEP_LAST_MESSAGES) > 0 else "router"
+    return (
+        "summarize" if over and _cut_index(state["messages"], KEEP_LAST_MESSAGES) > 0 else "router"
+    )
 
 
 def summarize(state: State) -> dict:
@@ -159,7 +176,8 @@ def summarize(state: State) -> dict:
 def router(state: State) -> dict:
     r = _router.invoke(
         "Classify the latest user message and write a standalone search query.\n\n"
-        + _summary_block(state) + _history(state)
+        + _summary_block(state)
+        + _history(state)
     )
     logger.info(f"router: {r.route} | query: {r.query!r}")
     # Reset per-turn state (checkpointer persists it across turns).
@@ -178,7 +196,9 @@ def grade(state: State) -> dict:
     if not state["docs"]:
         return {"supported": False}
     context = "\n\n".join(state["docs"])
-    g = _grader.invoke(f"Question: {state['query']}\n\nContext:\n{context}\n\nDoes the context answer the question?")
+    g = _grader.invoke(
+        f"Question: {state['query']}\n\nContext:\n{context}\n\nDoes the context answer the question?"
+    )
     logger.info(f"grader: supported={g.supported}")
     return {"supported": g.supported}
 
@@ -216,8 +236,10 @@ def after_grade(state: State) -> str:
 
 def create_graph(checkpointer, mcp_tools=()):
     calories = create_react_agent(
-        _llm, [calorie_plan, calculate_macros, meal_macros, ask_user, *mcp_tools],
-        prompt=_calorie_prompt, state_schema=CalorieState,
+        _llm,
+        [calorie_plan, calculate_macros, meal_macros, ask_user, *mcp_tools],
+        prompt=_calorie_prompt,
+        state_schema=CalorieState,
     )
     g = StateGraph(State)
     g.add_node("calories", calories)

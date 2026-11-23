@@ -1,5 +1,6 @@
 services:
   nutribot:
+    image: ${NUTRIBOT_IMAGE:-nutribot-nutribot}  # EC2 sets this to the ECR tag; local builds keep the default name
     build:
       context: .
       args:
